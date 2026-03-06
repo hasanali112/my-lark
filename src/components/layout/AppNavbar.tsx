@@ -15,11 +15,11 @@ const AppNavbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur border-b border-primary/15">
       <Container className="h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center font-semibold">
-            {user?.fullName?.[0] || user?.username?.[0] || "U"}
+          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center font-semibold text-lg">
+            M
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#1F2329]">UrbanSync</p>
+            <p className="text-sm font-semibold text-[#1F2329]">MyLark</p>
             <p className="text-[11px] text-[#6B7280]">Workspace</p>
           </div>
         </Link>

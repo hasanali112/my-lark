@@ -27,7 +27,8 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUser = async () => {
     try {
-      const response = await apiFetch("/users/me");
+      const response = await apiFetch("/users/me", { skipRedirect: true });
+
       if (response.ok) {
         const data = await response.json();
         setUser(data.data || data);

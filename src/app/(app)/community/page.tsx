@@ -51,7 +51,7 @@ export default function CommunityPage() {
             </div>
             <div className="flex flex-wrap gap-3 text-xs font-semibold text-primary">
               <span className="px-3 py-2 rounded-xl border border-primary/20 bg-primary/5">
-                Workspace: UrbanSync
+                Workspace: MyLark
               </span>
               <span className="px-3 py-2 rounded-xl border border-primary/20 bg-primary/5">
                 Status: Online

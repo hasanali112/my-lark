@@ -9,10 +9,10 @@ const Footer = () => {
           <div className="col-span-1 md:col-span-1">
             <div className="flex items-center space-x-2 mb-6">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">U</span>
+                <span className="text-white font-bold">M</span>
               </div>
               <span className="text-xl font-bold tracking-tight text-[#1F2329]">
-                UrbanSync
+                MyLark
               </span>
             </div>
             <p className="text-[#646A73] text-sm leading-relaxed max-w-xs">
@@ -92,7 +92,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-24 pt-8 border-t border-[#DEE0E3] flex flex-col md:flex-row justify-between items-center text-xs text-[#646A73]/70 space-y-4 md:space-y-0">
-          <p>© 2026 UrbanSync Technologies Inc. All rights reserved.</p>
+          <p>© 2026 MyLark Technologies Inc. All rights reserved.</p>
           <div className="flex space-x-6">
             <Link href="#" className="hover:text-primary transition-colors">
               Privacy Policy

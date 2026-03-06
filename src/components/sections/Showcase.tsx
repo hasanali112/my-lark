@@ -13,7 +13,7 @@ const Showcase = () => {
             <div className="relative rounded-[24px] overflow-hidden bg-[#F5F6F7] aspect-video flex items-center justify-center border border-[#DEE0E3]">
               <Image
                 src="/urbansync_dashboard.png"
-                alt="UrbanSync Dashboard Showcase"
+                alt="MyLark Dashboard Showcase"
                 fill
                 className="object-cover transform scale-100 group-hover:scale-[1.02] transition-transform duration-700"
               />

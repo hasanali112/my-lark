@@ -4,6 +4,7 @@ export const API_BASE_URL =
 
 type ApiFetchOptions = RequestInit & {
   skipAuthRefresh?: boolean;
+  skipRedirect?: boolean;
 };
 
 function getCookie(name: string): string | undefined {
@@ -32,7 +33,7 @@ export async function apiFetch(
   options: ApiFetchOptions = {},
   hasRetried = false,
 ): Promise<Response> {
-  const { skipAuthRefresh, ...init } = options;
+  const { skipAuthRefresh, skipRedirect, ...init } = options;
   const url = input.startsWith("http") ? input : `${API_BASE_URL}${input}`;
 
   if (!skipAuthRefresh && !hasRetried) {
@@ -75,7 +76,7 @@ export async function apiFetch(
       document.cookie =
         "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     }
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !skipRedirect) {
       window.location.href = "/auth/login";
     }
     return response;

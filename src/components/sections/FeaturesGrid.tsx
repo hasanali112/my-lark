@@ -98,7 +98,7 @@ const FeaturesGrid = () => {
           <div>
             <h2 className="text-3xl md:text-5xl font-bold mb-6 text-[#1F2329]">
               How every district <br />
-              runs better on <span className="text-primary">UrbanSync</span>
+              runs better on <span className="text-primary">MyLark</span>
             </h2>
             <p className="text-[#646A73] leading-relaxed">
               Everything built-in, distributed-ready, and set up for long-term

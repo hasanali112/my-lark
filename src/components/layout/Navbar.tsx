@@ -40,10 +40,10 @@ const Navbar = () => {
             className="flex items-center space-x-2 group cursor-pointer"
           >
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300">
-              <span className="text-white font-bold">U</span>
+              <span className="text-white font-bold">M</span>
             </div>
             <span className="text-xl font-bold tracking-tight text-[#1F2329] group-hover:text-primary transition-colors">
-              UrbanSync
+              MyLark
             </span>
           </Link>
 

@@ -31,7 +31,7 @@ export default function LandingPage() {
             </h2>
             <p className="text-lg text-[#646A73] mb-12 mx-auto">
               Join 450+ municipalities already building the future of urban
-              living. Deploy UrbanSync in your district today.
+              living. Deploy MyLark in your district today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
               <button className="bg-primary text-white px-10 py-4 rounded-full font-bold hover:bg-primary/90 transition-all hover:scale-105">
