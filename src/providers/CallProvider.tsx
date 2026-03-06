@@ -40,8 +40,9 @@ interface CallContextType {
   isLocalVideoOff: boolean;
   isRemoteMuted: boolean;
   isRemoteVideoOff: boolean;
-  toggleMute: () => void;
   toggleVideo: () => void;
+  toggleMute: () => void;
+  callDuration: number;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -73,6 +74,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLocalVideoOff, setIsLocalVideoOff] = useState(false);
   const [isRemoteMuted, setIsRemoteMuted] = useState(false);
   const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   useEffect(() => {
     if (
@@ -147,6 +149,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [socket, roomId]);
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (callStatus === CallStatus.ACTIVE) {
+      interval = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [callStatus]);
+
   const isAudioOnlyRef = useRef(false);
   const callStatusRef = useRef<CallStatus>(CallStatus.IDLE);
 
@@ -168,8 +180,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
-    remoteStreamRef.current = null;
-    setRemoteStream(null);
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach((track) => track.stop());
+      remoteStreamRef.current = null;
+      setRemoteStream(null);
+    }
     setCallStatus(CallStatus.IDLE);
     callStatusRef.current = CallStatus.IDLE;
     setRoomId(null);
@@ -180,6 +195,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLocalVideoOff(false);
     setIsRemoteMuted(false);
     setIsRemoteVideoOff(false);
+    setCallDuration(0);
   }, [stopRingtone]);
 
   const createPeerConnection = useCallback(
@@ -197,12 +213,19 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       pc.ontrack = (event) => {
-        console.log("OnTrack event received:", event.streams);
-        const stream = event.streams[0] || new MediaStream([event.track]);
-        remoteStreamRef.current = stream;
-        setRemoteStream(stream);
+        console.log("OnTrack event received:", event.track.kind);
 
-        // Listen for track changes (unmute/enable)
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+
+        // Add the track to our persistent ref stream
+        remoteStreamRef.current.addTrack(event.track);
+
+        // Update state with a NEW MediaStream instance to trigger re-renders
+        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+
+        // Listen for track changes (unmute/enable/ended)
         event.track.onunmute = () => {
           if (remoteStreamRef.current) {
             setRemoteStream(
@@ -500,6 +523,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         isRemoteVideoOff,
         toggleMute,
         toggleVideo,
+        callDuration,
       }}
     >
       {children}
@@ -518,6 +542,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         isRemoteVideoOff={isRemoteVideoOff}
         toggleMute={toggleMute}
         toggleVideo={toggleVideo}
+        callDuration={callDuration}
       />
     </CallContext.Provider>
   );

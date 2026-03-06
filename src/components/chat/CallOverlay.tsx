@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CallStatus } from "@/hooks/useWebRTC";
 
@@ -22,6 +22,7 @@ interface CallOverlayProps {
   isRemoteVideoOff: boolean;
   toggleMute: () => void;
   toggleVideo: () => void;
+  callDuration: number;
 }
 
 const CallOverlay = ({
@@ -39,33 +40,75 @@ const CallOverlay = ({
   isRemoteVideoOff,
   toggleMute,
   toggleVideo,
+  callDuration,
 }: CallOverlayProps) => {
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const bgVideoRef = useRef<HTMLVideoElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const initialPos = useRef({ x: 0, y: 0 });
 
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-    // Shared background logic (Initiating/Accepted uses local, Active uses remote)
-    if (bgVideoRef.current) {
-      if (
-        (status === CallStatus.INITIATING || status === CallStatus.ACCEPTED) &&
-        localStream
-      ) {
-        bgVideoRef.current.srcObject = localStream;
-      } else if (status === CallStatus.ACTIVE && remoteStream) {
-        bgVideoRef.current.srcObject = remoteStream;
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    initialPos.current = { ...position };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    setPosition({
+      x: initialPos.current.x + dx,
+      y: initialPos.current.y + dy,
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+  };
+  const localVideoRef = useCallback(
+    (node: HTMLVideoElement | null) => {
+      if (node && localStream) {
+        node.srcObject = localStream;
       }
-    }
-  }, [localStream, remoteStream, status]);
+    },
+    [localStream],
+  );
 
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
+  const remoteVideoRef = useCallback(
+    (node: HTMLVideoElement | null) => {
+      if (node && remoteStream) {
+        console.log("Attaching remote stream to video element");
+        node.srcObject = remoteStream;
+      }
+    },
+    [remoteStream],
+  );
+
+  const bgVideoRef = useCallback(
+    (node: HTMLVideoElement | null) => {
+      if (node) {
+        if (
+          (status === CallStatus.INITIATING ||
+            status === CallStatus.ACCEPTED) &&
+          localStream
+        ) {
+          node.srcObject = localStream;
+        } else if (status === CallStatus.ACTIVE && remoteStream) {
+          node.srcObject = remoteStream;
+        }
+      }
+    },
+    [localStream, remoteStream, status],
+  );
 
   if (status === CallStatus.IDLE) return null;
 
@@ -134,21 +177,32 @@ const CallOverlay = ({
                 {status === CallStatus.INCOMING && "Incoming Video Call..."}
                 {status === CallStatus.ACCEPTED && "Connecting..."}
                 {status === CallStatus.ACTIVE &&
-                  (isRemoteVideoOff ? "Video Paused" : "12:45")}
+                  (isRemoteVideoOff
+                    ? "Video Paused"
+                    : formatDuration(callDuration))}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Local Mini-Preview - Draggable-style positioning */}
+        {/* Local Mini-Preview - Draggable */}
         {localStream && status !== CallStatus.INCOMING && (
-          <div className="absolute top-8 right-8 w-32 h-44 md:w-56 md:h-72 bg-gray-900 border-2 border-white/20 shadow-2xl z-30 transition-all rounded-3xl overflow-hidden">
+          <div
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px)`,
+              touchAction: "none",
+            }}
+            className={`absolute top-8 right-8 w-32 h-44 md:w-56 md:h-72 bg-gray-900 border-2 border-white/20 shadow-2xl z-30 transition-shadow rounded-3xl overflow-hidden cursor-move ${isDragging ? "shadow-white/10 ring-2 ring-white/20" : ""}`}
+          >
             <video
               ref={localVideoRef}
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover transition-opacity duration-500 ${!isLocalVideoOff ? "opacity-100" : "opacity-0"}`}
+              className={`w-full h-full object-cover pointer-events-none transition-opacity duration-500 ${!isLocalVideoOff ? "opacity-100" : "opacity-0"}`}
             />
             {isLocalVideoOff && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-md">
