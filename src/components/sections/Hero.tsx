@@ -1,4 +1,6 @@
+"use client";
 import Image from "next/image";
+
 import Button from "../ui/Button";
 import Container from "../layout/Container";
 import { useUser } from "@/providers/UserProvider";
