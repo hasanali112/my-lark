@@ -61,17 +61,26 @@ export default function ChatPage() {
     : null;
 
   return (
-    <Container className="mb-10">
-      <div className="flex min-h-[calc(100vh-14rem)] bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm">
-        <ChatSidebar
-          isConnected={isConnected}
-          onlineUsers={onlineUsers}
-          onSelectFriend={handleSelectFriend}
-          unreadCounts={unreadCounts}
-        />
-        <main className="flex-1 flex flex-col min-w-0 bg-white">
+    <Container className="mb-10 h-[calc(100vh-14rem)]">
+      <div className="flex h-full bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm relative">
+        <div
+          className={`w-full md:w-80 shrink-0 ${selectedFriend ? "hidden md:flex" : "flex"} flex-col`}
+        >
+          <ChatSidebar
+            isConnected={isConnected}
+            onlineUsers={onlineUsers}
+            onSelectFriend={handleSelectFriend}
+            unreadCounts={unreadCounts}
+          />
+        </div>
+        <main
+          className={`flex-1 ${selectedFriend ? "flex" : "hidden md:flex"} flex-col min-w-0 bg-white`}
+        >
           {activeUser ? (
-            <ConversationView activeUser={activeUser} />
+            <ConversationView
+              activeUser={activeUser}
+              onBack={() => setSelectedFriend(null)}
+            />
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-400">
               <p>Select a friend from the sidebar to start chatting</p>

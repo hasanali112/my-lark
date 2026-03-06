@@ -110,7 +110,7 @@ const ChatSidebar = ({
   );
 
   return (
-    <aside className="w-80 border-r border-[#DEE0E3] bg-white flex flex-col shrink-0 flex-none relative z-20">
+    <aside className="w-full h-full border-r border-[#DEE0E3] bg-white flex flex-col shrink-0 relative z-20">
       {/* Sidebar Header */}
       <div className="p-4 border-b border-[#DEE0E3]">
         <div className="flex justify-between items-center mb-4">

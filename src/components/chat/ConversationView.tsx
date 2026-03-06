@@ -28,9 +28,10 @@ interface ConversationViewProps {
     avatar: string;
     isOnline: boolean;
   };
+  onBack?: () => void;
 }
 
-const ConversationView = ({ activeUser }: ConversationViewProps) => {
+const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
   const { socket } = useSocketContext();
   const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -119,30 +120,52 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Chat Header */}
       <header className="px-6 py-4 border-b border-[#DEE0E3] flex items-center justify-between bg-white shrink-0">
-        <div className="flex items-center">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
-              <Image
-                src={activeUser.avatar}
-                alt={activeUser.name}
-                width={40}
-                height={40}
-                className="object-cover h-full w-full"
-              />
-            </div>
-            <div
-              className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${activeUser.isOnline ? "bg-green-500" : "bg-gray-400"}`}
-            ></div>
-          </div>
-          <div className="ml-3">
-            <h2 className="text-sm font-bold text-[#1F2329]">
-              {activeUser.name}
-            </h2>
-            <p
-              className={`text-[10px] font-medium ${activeUser.isOnline ? "text-green-600" : "text-[#646A73]"}`}
+        <div className="flex items-center min-w-0">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden mr-4 p-1 text-[#646A73] hover:text-primary transition-colors"
             >
-              {activeUser.isOnline ? "Online" : "Offline"}
-            </p>
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+          )}
+          <div className="flex items-center min-w-0">
+            <div className="relative shrink-0">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
+                <Image
+                  src={activeUser.avatar}
+                  alt={activeUser.name}
+                  width={40}
+                  height={40}
+                  className="object-cover h-full w-full"
+                />
+              </div>
+              <div
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${activeUser.isOnline ? "bg-green-500" : "bg-gray-400"}`}
+              ></div>
+            </div>
+            <div className="ml-3 truncate">
+              <h2 className="text-sm font-bold text-[#1F2329] truncate">
+                {activeUser.name}
+              </h2>
+              <p
+                className={`text-[10px] font-medium ${activeUser.isOnline ? "text-green-600" : "text-[#646A73]"}`}
+              >
+                {activeUser.isOnline ? "Online" : "Offline"}
+              </p>
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-4">
