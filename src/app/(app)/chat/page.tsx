@@ -3,11 +3,13 @@
 import React from "react";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ConversationView from "@/components/chat/ConversationView";
-import { useSocket } from "@/hooks/useSocket";
+import { useSocketContext } from "@/providers/SocketProvider";
+import { useUser } from "@/providers/UserProvider";
+import Container from "@/components/layout/Container";
 
 export default function ChatPage() {
-  const currentUserId = "990b9287-bf5b-4b4f-b2d8-60cad3bebe20"; // TODO: get this dynamically from Auth Context
-  const { isConnected, onlineUsers } = useSocket(currentUserId);
+  const { isConnected, onlineUsers, socket } = useSocketContext();
+  const { user } = useUser();
   const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
 
   // Map selected friend to activeUser format expected by ConversationView
@@ -23,8 +25,8 @@ export default function ChatPage() {
     : null;
 
   return (
-    <div className="mx-6 mb-10">
-      <div className="flex min-h-[calc(100vh-12rem)] bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm">
+    <Container className="mb-10">
+      <div className="flex min-h-[calc(100vh-14rem)] bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm">
         <ChatSidebar
           isConnected={isConnected}
           onlineUsers={onlineUsers}
@@ -40,6 +42,6 @@ export default function ChatPage() {
           )}
         </main>
       </div>
-    </div>
+    </Container>
   );
 }

@@ -1,6 +1,10 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useUser } from "@/providers/UserProvider";
 
 interface Friend {
   user_id: string;
@@ -21,6 +25,7 @@ const ChatSidebar = ({
   onlineUsers,
   onSelectFriend,
 }: ChatSidebarProps) => {
+  const { user } = useUser();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -137,38 +142,52 @@ const ChatSidebar = ({
       </div>
 
       {/* Sidebar Footer User Info */}
-      <div className="p-4 border-t border-[#DEE0E3] bg-[#F5F6F7]/50 flex items-center">
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">
-          H
+      <Link href={`/profile/${user?.username || "me"}`}>
+        <div className="p-4 border-t border-[#DEE0E3] bg-[#F5F6F7]/50 flex items-center hover:bg-[#F5F6F7] transition-colors cursor-pointer">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs overflow-hidden">
+            {user?.avatar ? (
+              <Image
+                src={user.avatar}
+                alt={user.username}
+                width={32}
+                height={32}
+                className="object-cover"
+              />
+            ) : (
+              (user?.fullName?.[0] || user?.username?.[0] || "?").toUpperCase()
+            )}
+          </div>
+          <div className="ml-2 flex-1 min-w-0">
+            <p className="text-xs font-semibold text-[#1F2329] truncate">
+              {user?.fullName || user?.username || "Loading..."}
+            </p>
+            <p className="text-[10px] text-[#646A73] truncate">
+              {user?.role || "Member"}
+            </p>
+          </div>
+          <div className="text-[#646A73]">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+          </div>
         </div>
-        <div className="ml-2 flex-1 min-w-0">
-          <p className="text-xs font-semibold text-[#1F2329] truncate">
-            Hasan Al Khalid
-          </p>
-          <p className="text-[10px] text-[#646A73] truncate">Administrator</p>
-        </div>
-        <button className="text-[#646A73] hover:text-[#1F2329]">
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-        </button>
-      </div>
+      </Link>
     </aside>
   );
 };

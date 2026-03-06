@@ -1,21 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import Button from "../ui/Button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Container from "./Container";
+import { useUser } from "@/providers/UserProvider";
 
 const Navbar = () => {
-  const [isAuthed, setIsAuthed] = useState(false);
+  const { user, refreshUser } = useUser();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const token = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("auth_token="));
-    setIsAuthed(Boolean(token));
-  }, []);
 
   const handleLogout = async () => {
     try {
@@ -30,7 +25,6 @@ const Navbar = () => {
     } finally {
       document.cookie =
         "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      setIsAuthed(false);
       setIsMenuOpen(false);
       window.location.href = "/auth/login";
     }
@@ -71,27 +65,32 @@ const Navbar = () => {
 
           {/* Auth Actions */}
           <div className="flex items-center space-x-4">
-            {isAuthed ? (
+            {user ? (
               <div className="relative">
                 <button
-                  className="w-9 h-9 rounded-full bg-primary text-white font-semibold text-xs flex items-center justify-center"
+                  className="w-9 h-9 rounded-full bg-primary/10 text-primary font-semibold text-xs flex items-center justify-center overflow-hidden border border-primary/10 hover:border-primary/30 transition-all"
                   onClick={() => setIsMenuOpen((prev) => !prev)}
                 >
-                  U
+                  {user.avatar ? (
+                    <Image
+                      src={user.avatar}
+                      alt={user.username}
+                      width={36}
+                      height={36}
+                      className="object-cover"
+                    />
+                  ) : (
+                    (user.fullName?.[0] || user.username[0]).toUpperCase()
+                  )}
                 </button>
                 {isMenuOpen && (
                   <div className="absolute right-0 mt-2 w-44 rounded-xl border border-[#DEE0E3] bg-white shadow-lg py-2 text-sm">
                     <Link
                       href="/community"
                       className="block px-4 py-2 text-[#1F2329] hover:bg-[#F5F6F7]"
+                      onClick={() => setIsMenuOpen(false)}
                     >
                       Community
-                    </Link>
-                    <Link
-                      href="/community/profile/me"
-                      className="block px-4 py-2 text-[#1F2329] hover:bg-[#F5F6F7]"
-                    >
-                      Profile
                     </Link>
                     <button
                       className="w-full text-left px-4 py-2 text-[#D14343] hover:bg-[#F5F6F7]"

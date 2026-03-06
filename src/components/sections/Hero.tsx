@@ -1,8 +1,12 @@
 import Image from "next/image";
 import Button from "../ui/Button";
 import Container from "../layout/Container";
+import { useUser } from "@/providers/UserProvider";
+import Link from "next/link";
 
 const Hero = () => {
+  const { user } = useUser();
+
   return (
     <section className="relative pt-48 pb-32 px-6 overflow-hidden">
       {/* Background Glows */}
@@ -26,9 +30,14 @@ const Hero = () => {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <Button size="lg" className="w-full sm:w-auto">
-            Start Developing Free
-          </Button>
+          <Link
+            href={user ? "/community/chat" : "/auth/register"}
+            className="w-full sm:w-auto"
+          >
+            <Button size="lg" className="w-full">
+              {user ? "Go to Dashboard" : "Get Started Free"}
+            </Button>
+          </Link>
           <Button
             variant="secondary"
             size="lg"

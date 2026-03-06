@@ -42,7 +42,7 @@ export default function LoginPage() {
         // Backend now sets the HttpOnly cookie for auth_token automatically
       }
 
-      router.push("/community/chat");
+      router.push("/");
       router.refresh();
     } catch (err: any) {
       setError(err.message);

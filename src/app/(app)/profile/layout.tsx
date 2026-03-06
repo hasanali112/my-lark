@@ -1,8 +1,7 @@
 import AppNavbar from "@/components/layout/AppNavbar";
 import AppFooter from "@/components/layout/AppFooter";
-import React from "react";
 
-export default function ChatLayout({
+export default function ProfileLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -10,7 +9,7 @@ export default function ChatLayout({
   return (
     <div className="min-h-screen bg-[#F5F6F7] text-[#1F2329]">
       <AppNavbar />
-      <main className="pt-24 pb-12">{children}</main>
+      <main className="pt-24">{children}</main>
       <AppFooter />
     </div>
   );
