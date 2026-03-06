@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { apiFetch } from "@/lib/api";
+import { useUser } from "@/providers/UserProvider";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { refreshUser } = useUser();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -48,6 +50,9 @@ export default function RegisterPage() {
         if (refreshToken) {
           localStorage.setItem("refresh_token", refreshToken);
         }
+
+        // Refresh user state immediately to update the UI
+        await refreshUser();
       }
 
       router.push("/");

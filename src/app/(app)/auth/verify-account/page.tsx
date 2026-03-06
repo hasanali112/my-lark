@@ -5,10 +5,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useUser } from "@/providers/UserProvider";
 
 function VerifyAccountContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useUser();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading",
@@ -54,6 +56,9 @@ function VerifyAccountContent() {
           if (refreshToken) {
             localStorage.setItem("refresh_token", refreshToken);
           }
+
+          // Refresh user state immediately to update the UI
+          await refreshUser();
         }
         setStatus("success");
         setMessage("Your account has been verified!");
