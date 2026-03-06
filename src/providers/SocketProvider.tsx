@@ -48,11 +48,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // Avoid duplicate connections
-    if (socketRef.current?.connected) return;
+    console.log("Connecting to socket with token...");
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
 
     const socket = io(`${SOCKET_URL}${NAMESPACE}`, {
       query: { userId: user.user_id },
+      auth: { token }, // Standard way to authenticate socket connection
       transports: ["websocket", "polling"],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -65,9 +67,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       setIsConnected(true);
     });
 
-    socket.on("disconnect", () => {
-      console.log("Socket disconnected");
+    socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
       setIsConnected(false);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("Socket connection error:", error);
     });
 
     socket.on("online-users", (users: string[]) => {

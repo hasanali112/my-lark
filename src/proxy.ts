@@ -4,18 +4,26 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
   const { pathname } = request.nextUrl;
 
+  console.log(
+    `[Proxy] Request: ${pathname}, Token: ${token ? "Found" : "Missing"}`,
+  );
+
   // 2. Handle Route Protection
   const isAuthRoute = pathname.startsWith("/auth");
-  const isProtectedRoute = !isAuthRoute && pathname !== "/";
+  const isProtectedRoot = !isAuthRoute && pathname !== "/";
 
-  if (isProtectedRoute && !token) {
+  if (isProtectedRoot && !token) {
+    console.log(
+      `[Proxy] Redirecting to login: Protected route ${pathname} accessed without token`,
+    );
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
   if (isAuthRoute && token) {
-    // Exception for verification page if you want users to be able to verify while logged in
-    // but usually, they should be logged out. Assuming standard redirect for all auth routes.
-    return NextResponse.redirect(new URL("/community/chat", request.url));
+    console.log(
+      `[Proxy] Redirecting to community: Auth route ${pathname} accessed with token`,
+    );
+    return NextResponse.redirect(new URL("/community", request.url));
   }
 
   return NextResponse.next();

@@ -45,6 +45,11 @@ function VerifyAccountContent() {
 
           if (accessToken) {
             localStorage.setItem("auth_token", accessToken);
+            // Set first-party cookie for middleware/proxy to use
+            document.cookie = `auth_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
+            console.log(
+              "Tokens stored in localStorage and cookies after verification",
+            );
           }
           if (refreshToken) {
             localStorage.setItem("refresh_token", refreshToken);

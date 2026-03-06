@@ -39,8 +39,15 @@ export default function RegisterPage() {
       if (typeof window !== "undefined") {
         const accessToken = data.data?.access_token || data.access_token;
         const refreshToken = data.data?.refresh_token || data.refresh_token;
-        if (accessToken) localStorage.setItem("auth_token", accessToken);
-        if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+        if (accessToken) {
+          localStorage.setItem("auth_token", accessToken);
+          // Set first-party cookie for middleware/proxy to use
+          document.cookie = `auth_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
+          console.log("Tokens stored in localStorage and cookies");
+        }
+        if (refreshToken) {
+          localStorage.setItem("refresh_token", refreshToken);
+        }
       }
 
       router.push("/");
