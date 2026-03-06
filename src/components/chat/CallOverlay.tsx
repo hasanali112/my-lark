@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CallStatus } from "@/hooks/useWebRTC";
 
@@ -74,41 +74,36 @@ const CallOverlay = ({
     setIsDragging(false);
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   };
-  const localVideoRef = useCallback(
-    (node: HTMLVideoElement | null) => {
-      if (node && localStream) {
-        node.srcObject = localStream;
-      }
-    },
-    [localStream],
-  );
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  const remoteVideoRef = useCallback(
-    (node: HTMLVideoElement | null) => {
-      if (node && remoteStream) {
-        console.log("Attaching remote stream to video element");
-        node.srcObject = remoteStream;
-      }
-    },
-    [remoteStream],
-  );
+  // Imperatively set srcObject whenever the stream changes
+  useEffect(() => {
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
 
-  const bgVideoRef = useCallback(
-    (node: HTMLVideoElement | null) => {
-      if (node) {
-        if (
-          (status === CallStatus.INITIATING ||
-            status === CallStatus.ACCEPTED) &&
-          localStream
-        ) {
-          node.srcObject = localStream;
-        } else if (status === CallStatus.ACTIVE && remoteStream) {
-          node.srcObject = remoteStream;
-        }
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      console.log("Attaching remote stream to video element", remoteStream);
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  useEffect(() => {
+    if (bgVideoRef.current) {
+      if (
+        (status === CallStatus.INITIATING || status === CallStatus.ACCEPTED) &&
+        localStream
+      ) {
+        bgVideoRef.current.srcObject = localStream;
+      } else if (status === CallStatus.ACTIVE && remoteStream) {
+        bgVideoRef.current.srcObject = remoteStream;
       }
-    },
-    [localStream, remoteStream, status],
-  );
+    }
+  }, [localStream, remoteStream, status]);
 
   if (status === CallStatus.IDLE) return null;
 

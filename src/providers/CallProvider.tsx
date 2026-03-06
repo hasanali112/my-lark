@@ -85,6 +85,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
+  // Warn user before reloading/closing during an active call
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (callStatusRef.current !== CallStatus.IDLE) {
+        e.preventDefault();
+        e.returnValue =
+          "You are on an active call. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   const stopRingtone = useCallback(() => {
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
@@ -227,12 +241,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
           remoteStreamRef.current.addTrack(event.track);
         }
 
-        // Use the existing stream ref to set state, ensuring the stream object itself is stable
-        setRemoteStream(remoteStreamRef.current);
-
-        // Force a re-render if needed, but since we are passing the same stream object,
-        // we might need to trigger a state update that React recognizes if the video element doesn't auto-update.
-        // However, standard WebRTC video elements usually handle track additions to the same srcObject.
+        // Create a NEW MediaStream instance from the same tracks to trigger React state update
+        // (React won't re-render if we pass the same object reference)
+        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
       };
 
       if (localStreamRef.current) {
