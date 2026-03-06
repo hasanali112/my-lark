@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-primary: #3375F8;
+  --color-secondary: #5FA5FF;
+  --color-accent: #00D2FF;
+  --color-background-light: #FFFFFF;
+  --color-surface: #FFFFFF / 0.8;
+  --color-border-subtle: #DEE0E3;
+  --color-text-primary: #1F2329;
+  --color-text-secondary: #646A73;
+  
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
   }
+}
+
+:root {
+  --background: #FFFFFF;
+  --foreground: #1F2329;
+  --primary: #3375F8;
+  --secondary: #646A73;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(222, 224, 227, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(31, 35, 41, 0.05);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #3375F8 0%, #5FA5FF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .bg-gradient-mesh {
+    background-color: #FFFFFF;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(20, 86, 240, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(51, 112, 255, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(0, 210, 255, 0.03) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(245, 246, 247, 0.8) 0px, transparent 50%);
+  }
 }
