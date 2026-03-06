@@ -37,10 +37,10 @@ export default function RegisterPage() {
       }
 
       if (typeof window !== "undefined") {
-        if (data.access_token)
-          localStorage.setItem("auth_token", data.access_token);
-        if (data.refresh_token)
-          localStorage.setItem("refresh_token", data.refresh_token);
+        const accessToken = data.data?.access_token || data.access_token;
+        const refreshToken = data.data?.refresh_token || data.refresh_token;
+        if (accessToken) localStorage.setItem("auth_token", accessToken);
+        if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
       }
 
       router.push("/");

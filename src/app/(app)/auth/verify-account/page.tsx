@@ -39,10 +39,17 @@ function VerifyAccountContent() {
           throw new Error(data.message || "Verification failed");
         }
 
-        if (data.access_token) {
-          // Backend now sets the HttpOnly cookie for auth_token automatically
-        }
+        if (typeof window !== "undefined") {
+          const accessToken = data.data?.access_token || data.access_token;
+          const refreshToken = data.data?.refresh_token || data.refresh_token;
 
+          if (accessToken) {
+            localStorage.setItem("auth_token", accessToken);
+          }
+          if (refreshToken) {
+            localStorage.setItem("refresh_token", refreshToken);
+          }
+        }
         setStatus("success");
         setMessage("Your account has been verified!");
 

@@ -60,10 +60,10 @@ export async function apiFetch(
       if (refreshRes.ok) {
         const data = await refreshRes.json();
         if (typeof window !== "undefined") {
-          if (data.access_token)
-            localStorage.setItem("auth_token", data.access_token);
-          if (data.refresh_token)
-            localStorage.setItem("refresh_token", data.refresh_token);
+          const accessToken = data.data?.access_token || data.access_token;
+          const refreshToken = data.data?.refresh_token || data.refresh_token;
+          if (accessToken) localStorage.setItem("auth_token", accessToken);
+          if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
         }
       }
     }
@@ -122,10 +122,10 @@ export async function apiFetch(
   } else {
     const data = await refreshResponse.json();
     if (typeof window !== "undefined") {
-      if (data.access_token)
-        localStorage.setItem("auth_token", data.access_token);
-      if (data.refresh_token)
-        localStorage.setItem("refresh_token", data.refresh_token);
+      const accessToken = data.data?.access_token || data.access_token;
+      const refreshToken = data.data?.refresh_token || data.refresh_token;
+      if (accessToken) localStorage.setItem("auth_token", accessToken);
+      if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
     }
   }
 
