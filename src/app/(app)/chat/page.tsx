@@ -61,10 +61,10 @@ export default function ChatPage() {
     : null;
 
   return (
-    <Container className="mb-10 h-[calc(100vh-14rem)]">
-      <div className="flex h-full bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm relative">
+    <Container className="h-full px-0 sm:px-2 md:px-6 lg:px-8 py-0 md:py-4">
+      <div className="flex h-full bg-white border border-primary/15 rounded-2xl md:rounded-2xl overflow-hidden shadow-sm relative">
         <div
-          className={`w-full md:w-80 shrink-0 ${selectedFriend ? "hidden md:flex" : "flex"} flex-col`}
+          className={`w-full md:w-80 shrink-0 ${selectedFriend ? "hidden md:flex" : "flex"} flex-col h-full`}
         >
           <ChatSidebar
             isConnected={isConnected}
@@ -74,7 +74,7 @@ export default function ChatPage() {
           />
         </div>
         <main
-          className={`flex-1 ${selectedFriend ? "flex" : "hidden md:flex"} flex-col min-w-0 bg-white`}
+          className={`flex-1 ${selectedFriend ? "flex" : "hidden md:flex"} flex-col min-w-0 bg-white min-h-0 overflow-hidden`}
         >
           {activeUser ? (
             <ConversationView

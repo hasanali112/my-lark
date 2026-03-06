@@ -34,9 +34,9 @@ export default function CommunityPage() {
   }, []);
 
   return (
-    <div className="px-6 pb-16">
+    <div className="px-0 md:px-6 pb-16">
       <Container>
-        <header className="bg-white rounded-2xl border border-primary/15 shadow-sm px-6 py-8">
+        <header className="bg-white rounded-2xl border border-primary/15 shadow-sm px-4 py-6 md:px-6 md:py-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-[#9AA0AA] font-semibold">
@@ -62,7 +62,7 @@ export default function CommunityPage() {
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
           <section className="space-y-4">
-            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-4 md:p-6">
               <h2 className="text-lg font-semibold text-[#1F2329]">
                 Quick Actions
               </h2>
@@ -100,7 +100,7 @@ export default function CommunityPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-4 md:p-6">
               <h2 className="text-lg font-semibold text-[#1F2329]">
                 Recent Activity
               </h2>
@@ -131,7 +131,7 @@ export default function CommunityPage() {
           </section>
 
           <aside className="space-y-4">
-            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-4 md:p-6">
               <h2 className="text-lg font-semibold text-[#1F2329]">
                 Profile Snapshot
               </h2>
@@ -159,7 +159,7 @@ export default function CommunityPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-primary/15 shadow-sm p-4 md:p-6">
               <h2 className="text-lg font-semibold text-[#1F2329]">
                 Community Guidelines
               </h2>

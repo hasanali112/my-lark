@@ -36,6 +36,12 @@ interface CallContextType {
   rejectCall: () => void;
   endCall: () => void;
   isAudioOnly: boolean;
+  isLocalMuted: boolean;
+  isLocalVideoOff: boolean;
+  isRemoteMuted: boolean;
+  isRemoteVideoOff: boolean;
+  toggleMute: () => void;
+  toggleVideo: () => void;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -53,11 +59,93 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const [remoteUser, setRemoteUser] = useState<CallUser | null>(null);
   const [isAudioOnly, setIsAudioOnly] = useState(false);
 
+  const roomIdRef = useRef<string | null>(null);
+  const remoteUserRef = useRef<CallUser | null>(null);
+
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isLocalMuted, setIsLocalMuted] = useState(false);
+  const [isLocalVideoOff, setIsLocalVideoOff] = useState(false);
+  const [isRemoteMuted, setIsRemoteMuted] = useState(false);
+  const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
+
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause();
+      ringtoneRef.current.currentTime = 0;
+      ringtoneRef.current = null;
+    }
+  }, []);
+
+  const playRingtone = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const audio = new Audio(
+        "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3",
+      );
+      audio.loop = true;
+      audio.play().catch((e) => console.error("Audio play failed:", e));
+      ringtoneRef.current = audio;
+    }
+  }, []);
+
+  const playOutgoingRingtone = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const audio = new Audio(
+        "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
+      );
+      audio.loop = true;
+      audio.play().catch((e) => console.error("Audio play failed:", e));
+      ringtoneRef.current = audio;
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsLocalMuted(!audioTrack.enabled);
+        if (socket && roomId) {
+          socket.emit("call-mode-change", {
+            roomId,
+            type: "audio",
+            enabled: audioTrack.enabled,
+          });
+        }
+      }
+    }
+  }, [socket, roomId]);
+
+  const toggleVideo = useCallback(() => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsLocalVideoOff(!videoTrack.enabled);
+        if (socket && roomId) {
+          socket.emit("call-mode-change", {
+            roomId,
+            type: "video",
+            enabled: videoTrack.enabled,
+          });
+        }
+      }
+    }
+  }, [socket, roomId]);
 
   const isAudioOnlyRef = useRef(false);
   const callStatusRef = useRef<CallStatus>(CallStatus.IDLE);
@@ -70,6 +158,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const cleanup = useCallback(() => {
+    stopRingtone(); // Ensure ringtone stops
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -84,8 +173,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     setCallStatus(CallStatus.IDLE);
     callStatusRef.current = CallStatus.IDLE;
     setRoomId(null);
+    roomIdRef.current = null;
     setRemoteUser(null);
-  }, []);
+    remoteUserRef.current = null;
+    setIsLocalMuted(false);
+    setIsLocalVideoOff(false);
+    setIsRemoteMuted(false);
+    setIsRemoteVideoOff(false);
+  }, [stopRingtone]);
 
   const createPeerConnection = useCallback(
     (targetSocketId: string, currentRoomId: string) => {
@@ -135,6 +230,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         });
         localStreamRef.current = stream;
         setLocalStream(stream);
+        playOutgoingRingtone();
         socket.emit("initiate-call", { receiverId, video });
       } catch (err) {
         console.error("Failed to get media devices", err);
@@ -151,8 +247,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       "call-initiated",
       (data: { roomId: string; receiver: CallUser; video: boolean }) => {
         setRoomId(data.roomId);
+        roomIdRef.current = data.roomId;
         setRemoteUser(data.receiver);
+        remoteUserRef.current = data.receiver;
         setIsAudioOnly(!data.video);
+        isAudioOnlyRef.current = !data.video;
       },
     );
 
@@ -160,11 +259,34 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       "incoming-call",
       (data: { roomId: string; caller: CallUser; video: boolean }) => {
         setRoomId(data.roomId);
+        roomIdRef.current = data.roomId;
         setRemoteUser(data.caller);
+        remoteUserRef.current = data.caller;
         setIsAudioOnly(!data.video);
         isAudioOnlyRef.current = !data.video;
         setCallStatus(CallStatus.INCOMING);
         callStatusRef.current = CallStatus.INCOMING;
+
+        // Audio Alert
+        playRingtone();
+
+        // Browser Notification
+        if (Notification.permission === "granted") {
+          const notification = new Notification(
+            `Incoming Call from ${data.caller.username}`,
+            {
+              body: `Answer the ${data.video ? "video" : "audio"} call on MyLark`,
+              icon: data.caller.avatar || "/favicon.ico",
+              tag: "incoming-call",
+              requireInteraction: true,
+            },
+          );
+
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+        }
       },
     );
 
@@ -175,6 +297,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         shouldCreateOffer: boolean;
         peerSocketId: string;
       }) => {
+        stopRingtone();
         setCallStatus(CallStatus.ACCEPTED);
         callStatusRef.current = CallStatus.ACCEPTED;
 
@@ -263,9 +386,44 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       },
     );
 
-    socket.on("call-rejected", cleanup);
-    socket.on("call-ended", cleanup);
-    socket.on("call-missed", cleanup);
+    socket.on("call-rejected", () => {
+      stopRingtone();
+      cleanup();
+    });
+    socket.on("call-ended", () => {
+      const currentRemoteUser = remoteUserRef.current;
+      // If we were receiving a call and the other side hung up, it's a missed call for us
+      if (callStatusRef.current === CallStatus.INCOMING && currentRemoteUser) {
+        socket.emit("send-message", {
+          receiverId: currentRemoteUser.user_id,
+          content: `__CALL_LOG__:MISSED_${isAudioOnlyRef.current ? "AUDIO" : "VIDEO"}`,
+        });
+      }
+      stopRingtone();
+      cleanup();
+    });
+    socket.on("call-missed", () => {
+      const currentRemoteUser = remoteUserRef.current;
+      if (callStatusRef.current === CallStatus.INCOMING && currentRemoteUser) {
+        socket.emit("send-message", {
+          receiverId: currentRemoteUser.user_id,
+          content: `__CALL_LOG__:MISSED_${isAudioOnlyRef.current ? "AUDIO" : "VIDEO"}`,
+        });
+      }
+      stopRingtone();
+      cleanup();
+    });
+
+    socket.on(
+      "call-mode-change",
+      (data: { type: "audio" | "video"; enabled: boolean }) => {
+        if (data.type === "audio") {
+          setIsRemoteMuted(!data.enabled);
+        } else {
+          setIsRemoteVideoOff(!data.enabled);
+        }
+      },
+    );
 
     return () => {
       socket.off("call-initiated");
@@ -277,27 +435,43 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       socket.off("call-rejected");
       socket.off("call-ended");
       socket.off("call-missed");
+      socket.off("call-mode-change");
     };
   }, [socket, cleanup, createPeerConnection]);
 
   const acceptCall = useCallback(() => {
-    if (socket && roomId)
-      socket.emit("call-response", { roomId, accept: true });
-  }, [socket, roomId]);
+    const currentRoomId = roomIdRef.current;
+    if (socket && currentRoomId)
+      socket.emit("call-response", { roomId: currentRoomId, accept: true });
+  }, [socket]);
 
   const rejectCall = useCallback(() => {
-    if (socket && roomId) {
-      socket.emit("call-response", { roomId, accept: false });
-      cleanup();
+    const currentRoomId = roomIdRef.current;
+    const currentRemoteUser = remoteUserRef.current;
+    if (socket && currentRoomId && currentRemoteUser) {
+      socket.emit("reject-call", { roomId: currentRoomId });
+      socket.emit("send-message", {
+        receiverId: currentRemoteUser.user_id,
+        content: `__CALL_LOG__:MISSED_${isAudioOnlyRef.current ? "AUDIO" : "VIDEO"}`,
+      });
     }
-  }, [socket, roomId, cleanup]);
+    cleanup();
+  }, [socket, cleanup]);
 
   const endCall = useCallback(() => {
-    if (socket && roomId) {
-      socket.emit("end-call", { roomId });
-      cleanup();
+    const currentRoomId = roomIdRef.current;
+    const currentRemoteUser = remoteUserRef.current;
+    if (socket && currentRoomId && currentRemoteUser) {
+      socket.emit("end-call", { roomId: currentRoomId });
+      if (callStatusRef.current === CallStatus.ACTIVE) {
+        socket.emit("send-message", {
+          receiverId: currentRemoteUser.user_id,
+          content: `__CALL_LOG__:ENDED_${isAudioOnlyRef.current ? "AUDIO" : "VIDEO"}`,
+        });
+      }
     }
-  }, [socket, roomId, cleanup]);
+    cleanup();
+  }, [socket, cleanup]);
 
   return (
     <CallContext.Provider
@@ -311,6 +485,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         rejectCall,
         endCall,
         isAudioOnly,
+        isLocalMuted,
+        isLocalVideoOff,
+        isRemoteMuted,
+        isRemoteVideoOff,
+        toggleMute,
+        toggleVideo,
       }}
     >
       {children}
@@ -323,6 +503,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         rejectCall={rejectCall}
         endCall={endCall}
         isAudioOnly={isAudioOnly}
+        isLocalMuted={isLocalMuted}
+        isLocalVideoOff={isLocalVideoOff}
+        isRemoteMuted={isRemoteMuted}
+        isRemoteVideoOff={isRemoteVideoOff}
+        toggleMute={toggleMute}
+        toggleVideo={toggleVideo}
       />
     </CallContext.Provider>
   );

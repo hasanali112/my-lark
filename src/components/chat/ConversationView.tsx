@@ -116,9 +116,9 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0">
       {/* Chat Header */}
-      <header className="px-6 py-4 border-b border-[#DEE0E3] flex items-center justify-between bg-white shrink-0">
+      <header className="px-3 md:px-6 py-3 md:py-4 border-b border-[#DEE0E3] flex items-center justify-between bg-white shrink-0">
         <div className="flex items-center min-w-0">
           {onBack && (
             <button
@@ -226,7 +226,7 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
       </header>
 
       {/* Message Feed */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F5F6F7]/30 flex flex-col">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 bg-[#F5F6F7]/30 flex flex-col min-h-0">
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center opacity-40">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
@@ -251,6 +251,124 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
         ) : (
           messages.map((msg) => {
             const isOwn = msg.sender_id === user?.user_id;
+            const isCallLog = msg.content.startsWith("__CALL_LOG__:");
+
+            if (isCallLog) {
+              const logType = msg.content.split(":")[1];
+              const isMissed = logType.startsWith("MISSED");
+              const isVideo = logType.endsWith("VIDEO");
+
+              // Alignment based on initiation side:
+              // Incoming logs -> Left. Outgoing logs -> Right.
+              const alignRight = isMissed ? !isOwn : isOwn;
+
+              return (
+                <div
+                  key={msg.message_id}
+                  className={`flex ${alignRight ? "justify-end" : "justify-start"} my-4 px-2`}
+                >
+                  <div
+                    className={`group relative flex flex-col ${alignRight ? "items-end" : "items-start"} max-w-[280px] w-full`}
+                  >
+                    <div
+                      className={`w-full bg-white rounded-2xl shadow-sm border border-[#DEE0E3] overflow-hidden transition-all hover:shadow-md cursor-pointer`}
+                      onClick={() => initiateCall(activeUser.userId, isVideo)}
+                    >
+                      <div className="p-4 flex items-center gap-4">
+                        <div
+                          className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isMissed ? "bg-red-50 text-red-500" : "bg-gray-50 text-gray-600"}`}
+                        >
+                          {isMissed ? (
+                            <svg
+                              className="w-6 h-6"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.516l2.257-1.13a1 1 0 00.502-1.21L9.284 4.052A1 1 0 008.336 3H5z"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-6 h-6"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              {isVideo ? (
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 00-2 2z"
+                                />
+                              ) : (
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                />
+                              )}
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-bold text-[#1F2329] truncate">
+                            {isMissed
+                              ? isOwn
+                                ? isVideo
+                                  ? "Missed video call"
+                                  : "Missed voice call"
+                                : isVideo
+                                  ? "Video call"
+                                  : "Voice call"
+                              : isVideo
+                                ? "Video call"
+                                : "Voice call"}
+                          </h4>
+                          <p className="text-[11px] text-[#646A73] truncate">
+                            {isMissed
+                              ? isOwn
+                                ? "Tap to call back"
+                                : "No answer"
+                              : "Call ended"}
+                          </p>
+                        </div>
+                        <div className="text-[#646A73]/30">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="bg-[#F5F6F7]/50 px-4 py-1.5 flex justify-end items-center gap-1">
+                        <span className="text-[10px] text-[#646A73] font-medium uppercase tracking-wider">
+                          {new Date(msg.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={msg.message_id}
@@ -299,10 +417,10 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
       {/* Chat Input */}
       <form
         onSubmit={handleSendMessage}
-        className="p-6 bg-white border-t border-[#DEE0E3] shrink-0"
+        className="px-1.5 md:px-6 py-3 md:py-6 bg-white border-t border-[#DEE0E3] shrink-0"
       >
-        <div className="flex items-end space-x-4">
-          <div className="flex-1 flex items-center space-x-3 bg-[#F5F6F7] rounded-xl px-4 py-3 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
+        <div className="flex items-end gap-1.5 md:gap-4">
+          <div className="flex-1 flex items-center gap-1 md:gap-3 bg-[#F5F6F7] rounded-xl px-1.5 md:px-4 py-2 md:py-3 focus-within:ring-1 focus-within:ring-primary/30 transition-all min-w-0">
             <button
               type="button"
               className="text-[#646A73] hover:text-primary transition-colors"
@@ -326,7 +444,7 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleSendMessage}
-              placeholder="Type your message here..."
+              placeholder="Message..."
               className="flex-1 bg-transparent border-none resize-none text-sm outline-none max-h-32 placeholder-[#646A73]/60"
             />
             <button
@@ -351,7 +469,7 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
           <button
             type="submit"
             disabled={!newMessage.trim()}
-            className="bg-primary text-white p-3 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 shrink-0 disabled:opacity-50 disabled:shadow-none"
+            className="bg-primary text-white p-2.5 md:p-3 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 shrink-0 disabled:opacity-50 disabled:shadow-none min-w-[40px] md:min-w-[48px] flex items-center justify-center"
           >
             <svg
               className="w-5 h-5"

@@ -146,7 +146,7 @@ const ChatSidebar = ({
       </div>
 
       {/* Friends List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-200">
         {filteredFriends.length === 0 ? (
           <p className="text-center text-sm text-gray-500 py-4 pt-10 px-4">
             No friends found. Go to the "Find Friends" section to connect with
@@ -209,7 +209,13 @@ const ChatSidebar = ({
                   >
                     {lastMsg
                       ? (lastMsg.sender_id === user?.user_id ? "You: " : "") +
-                        lastMsg.content
+                        (lastMsg.content.startsWith("__CALL_LOG__:")
+                          ? lastMsg.content.split(":")[1].startsWith("MISSED")
+                            ? lastMsg.sender_id === user?.user_id
+                              ? "You missed a call"
+                              : "Missed call"
+                            : "Call ended"
+                          : lastMsg.content)
                       : `@${friend.username}`}
                   </p>
                 </div>
