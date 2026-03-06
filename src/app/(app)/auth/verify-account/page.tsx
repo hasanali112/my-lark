@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+import { apiFetch } from "@/lib/api";
 
 function VerifyAccountContent() {
   const searchParams = useSearchParams();
@@ -23,16 +24,14 @@ function VerifyAccountContent() {
 
     const verifyEmail = async () => {
       try {
-        const response = await fetch(
-          "http://localhost:8000/api/v1/auth/verify-email",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ token }),
+        const response = await apiFetch("/auth/verify-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({ token }),
+          skipAuthRefresh: true,
+        });
 
         const data = await response.json();
 
@@ -49,7 +48,7 @@ function VerifyAccountContent() {
 
         // Redirect to chat after a brief moment
         setTimeout(() => {
-          router.push("/chat");
+          router.push("/community/chat");
         }, 1500);
       } catch (err: any) {
         setStatus("error");

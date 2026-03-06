@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:4000";
-const NAMESPACE = "/chat";
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000";
+const NAMESPACE = "/webrtc";
 
 export const useSocket = (userId: string) => {
   const socketRef = useRef<Socket | null>(null);
@@ -17,7 +18,9 @@ export const useSocket = (userId: string) => {
     // Connect to the socket with userId as a query parameter
     const socket = io(`${SOCKET_URL}${NAMESPACE}`, {
       query: { userId },
-      transports: ["websocket"], // Ensure we prioritize websockets
+      transports: ["websocket", "polling"],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;

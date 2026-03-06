@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import { apiFetch } from "@/lib/api";
 
 interface Friend {
   user_id: string;
@@ -26,21 +27,16 @@ const ChatSidebar = ({
   useEffect(() => {
     const fetchFriends = async () => {
       try {
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("auth_token="))
-          ?.split("=")[1];
-
-        const response = await fetch("http://localhost:8000/api/v1/friends", {
+        const response = await apiFetch("/friends", {
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
 
         if (response.ok) {
           const data = await response.json();
-          setFriends(data.data || data);
+          const list = data.data || data;
+          setFriends(Array.isArray(list) ? list : []);
         }
       } catch (error) {
         console.error("Failed to fetch friends", error);

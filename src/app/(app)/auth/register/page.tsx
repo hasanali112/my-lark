@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -27,14 +28,12 @@ export default function RegisterPage() {
     setError(null);
 
     try {
-      const response = await fetch(
-        "http://localhost:8000/api/v1/auth/register",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        },
-      );
+      const response = await apiFetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+        skipAuthRefresh: true,
+      });
 
       const data = await response.json();
 
@@ -54,14 +53,12 @@ export default function RegisterPage() {
     setResendLoading(true);
     setResendMessage(null);
     try {
-      const response = await fetch(
-        "http://localhost:8000/api/v1/auth/resend-verification",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: formData.email }),
-        },
-      );
+      const response = await apiFetch("/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+        skipAuthRefresh: true,
+      });
 
       const data = await response.json();
 

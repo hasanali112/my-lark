@@ -15,7 +15,7 @@ export function proxy(request: NextRequest) {
   if (isAuthRoute && token) {
     // Exception for verification page if you want users to be able to verify while logged in
     // but usually, they should be logged out. Assuming standard redirect for all auth routes.
-    return NextResponse.redirect(new URL("/chat", request.url));
+    return NextResponse.redirect(new URL("/community/chat", request.url));
   }
 
   return NextResponse.next();

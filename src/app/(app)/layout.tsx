@@ -1,5 +1,5 @@
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import AppNavbar from "@/components/layout/AppNavbar";
+import AppFooter from "@/components/layout/AppFooter";
 
 export default function AppLayout({
   children,
@@ -8,9 +8,9 @@ export default function AppLayout({
 }) {
   return (
     <div className="min-h-screen bg-[#F5F6F7] text-[#1F2329]">
-      <Navbar />
+      <AppNavbar />
       <main className="pt-24">{children}</main>
-      <Footer />
+      <AppFooter />
     </div>
   );
 }

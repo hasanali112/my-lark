@@ -23,21 +23,23 @@ export default function ChatPage() {
     : null;
 
   return (
-    <>
-      <ChatSidebar
-        isConnected={isConnected}
-        onlineUsers={onlineUsers}
-        onSelectFriend={setSelectedFriend}
-      />
-      <main className="flex-1 flex flex-col min-w-0 bg-white">
-        {activeUser ? (
-          <ConversationView activeUser={activeUser} />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <p>Select a friend from the sidebar to start chatting</p>
-          </div>
-        )}
-      </main>
-    </>
+    <div className="mx-6 mb-10">
+      <div className="flex min-h-[calc(100vh-12rem)] bg-white border border-primary/15 rounded-2xl overflow-hidden shadow-sm">
+        <ChatSidebar
+          isConnected={isConnected}
+          onlineUsers={onlineUsers}
+          onSelectFriend={setSelectedFriend}
+        />
+        <main className="flex-1 flex flex-col min-w-0 bg-white">
+          {activeUser ? (
+            <ConversationView activeUser={activeUser} />
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <p>Select a friend from the sidebar to start chatting</p>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
   );
 }

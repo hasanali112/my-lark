@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,12 +22,13 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/auth/login", {
+      const response = await apiFetch("/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
+        skipAuthRefresh: true,
       });
 
       const data = await response.json();
@@ -40,7 +42,7 @@ export default function LoginPage() {
         // Backend now sets the HttpOnly cookie for auth_token automatically
       }
 
-      router.push("/chat");
+      router.push("/community/chat");
       router.refresh();
     } catch (err: any) {
       setError(err.message);
