@@ -3,6 +3,8 @@ import Image from "next/image";
 import { useSocketContext } from "@/providers/SocketProvider";
 import { useUser } from "@/providers/UserProvider";
 import { apiFetch } from "@/lib/api";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import CallOverlay from "./CallOverlay";
 
 interface Message {
   message_id: string;
@@ -32,6 +34,18 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    callStatus,
+    localStream,
+    remoteStream,
+    remoteUser,
+    initiateCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    isAudioOnly,
+  } = useWebRTC();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,7 +144,11 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
           </div>
         </div>
         <div className="flex items-center space-x-4">
-          <button className="text-[#646A73] hover:text-primary">
+          <button
+            onClick={() => initiateCall(activeUser.userId, false)}
+            className="text-[#646A73] hover:text-primary transition-colors"
+            title="Audio Call"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
@@ -145,7 +163,11 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
               />
             </svg>
           </button>
-          <button className="text-[#646A73] hover:text-primary">
+          <button
+            onClick={() => initiateCall(activeUser.userId, true)}
+            className="text-[#646A73] hover:text-primary transition-colors"
+            title="Video Call"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
@@ -326,6 +348,18 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
           Press Enter to send, Shift + Enter for new line
         </p>
       </form>
+
+      {/* WebRTC Call Overlay */}
+      <CallOverlay
+        status={callStatus}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        remoteUser={remoteUser}
+        acceptCall={acceptCall}
+        rejectCall={rejectCall}
+        endCall={endCall}
+        isAudioOnly={isAudioOnly}
+      />
     </div>
   );
 };
