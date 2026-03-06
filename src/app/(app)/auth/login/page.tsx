@@ -37,9 +37,12 @@ export default function LoginPage() {
         throw new Error(data.message || "Login failed");
       }
 
-      // Store token in a cookie locally for frontend apiFetch to read
-      if (data.access_token) {
-        document.cookie = `auth_token=${data.access_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+      // Store tokens in localStorage for frontend apiFetch to read reliably cross-domain
+      if (typeof window !== "undefined") {
+        if (data.access_token)
+          localStorage.setItem("auth_token", data.access_token);
+        if (data.refresh_token)
+          localStorage.setItem("refresh_token", data.refresh_token);
       }
 
       router.push("/");

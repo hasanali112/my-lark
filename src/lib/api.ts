@@ -7,13 +7,18 @@ type ApiFetchOptions = RequestInit & {
   skipRedirect?: boolean;
 };
 
-function getCookie(name: string): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const value = document.cookie
+function getToken(name: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  // Also check cookie as a fallback during migration
+  const cookieValue = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${name}=`))
     ?.split("=")[1];
-  return value ? decodeURIComponent(value) : undefined;
+
+  return (
+    localStorage.getItem(name) ||
+    (cookieValue ? decodeURIComponent(cookieValue) : undefined)
+  );
 }
 
 function isTokenExpiringSoon(token?: string, thresholdSeconds = 60) {
@@ -37,20 +42,37 @@ export async function apiFetch(
   const url = input.startsWith("http") ? input : `${API_BASE_URL}${input}`;
 
   if (!skipAuthRefresh && !hasRetried) {
-    const token = getCookie("auth_token");
+    const token = getToken("auth_token");
     if (isTokenExpiringSoon(token)) {
-      await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const refreshToken = getToken("refresh_token");
+      const refreshOptions: RequestInit = {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-      });
+      };
+      if (refreshToken)
+        refreshOptions.body = JSON.stringify({ refresh_token: refreshToken });
+
+      const refreshRes = await fetch(
+        `${API_BASE_URL}/auth/refresh`,
+        refreshOptions,
+      );
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        if (typeof window !== "undefined") {
+          if (data.access_token)
+            localStorage.setItem("auth_token", data.access_token);
+          if (data.refresh_token)
+            localStorage.setItem("refresh_token", data.refresh_token);
+        }
+      }
     }
   }
 
-  const token = getCookie("auth_token");
+  const currentToken = getToken("auth_token");
   const headers = new Headers(init.headers);
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  if (currentToken) {
+    headers.set("Authorization", `Bearer ${currentToken}`);
   }
 
   const response = await fetch(url, {
@@ -63,11 +85,19 @@ export async function apiFetch(
     return response;
   }
 
-  const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
+  const refreshToken = getToken("refresh_token");
+  const refreshOptions: RequestInit = {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-  });
+  };
+  if (refreshToken)
+    refreshOptions.body = JSON.stringify({ refresh_token: refreshToken });
+
+  const refreshResponse = await fetch(
+    `${API_BASE_URL}/auth/refresh`,
+    refreshOptions,
+  );
 
   if (!refreshResponse.ok) {
     try {
@@ -79,7 +109,9 @@ export async function apiFetch(
     } catch {
       // ignore
     }
-    if (typeof document !== "undefined") {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
       document.cookie =
         "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     }
@@ -87,6 +119,14 @@ export async function apiFetch(
       window.location.href = "/auth/login";
     }
     return response;
+  } else {
+    const data = await refreshResponse.json();
+    if (typeof window !== "undefined") {
+      if (data.access_token)
+        localStorage.setItem("auth_token", data.access_token);
+      if (data.refresh_token)
+        localStorage.setItem("refresh_token", data.refresh_token);
+    }
   }
 
   return apiFetch(input, options, true);

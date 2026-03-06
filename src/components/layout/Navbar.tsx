@@ -23,8 +23,10 @@ const Navbar = () => {
     } catch (error) {
       // noop
     } finally {
-      document.cookie =
-        "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+      }
       setIsMenuOpen(false);
       window.location.href = "/auth/login";
     }
