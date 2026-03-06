@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CallStatus } from "@/hooks/useWebRTC";
 
@@ -78,19 +78,40 @@ const CallOverlay = ({
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Imperatively set srcObject whenever the stream changes
+  // Callback ref for remote video: fires immediately when the element mounts.
+  // This handles the case where remoteStream was set BEFORE the video element mounted.
+  const assignRemoteVideo = useCallback(
+    (node: HTMLVideoElement | null) => {
+      remoteVideoRef.current = node;
+      if (node && remoteStream) {
+        console.log(
+          "[CallOverlay] Assigning remote stream on mount",
+          remoteStream.getTracks(),
+        );
+        node.srcObject = remoteStream;
+      }
+    },
+    [remoteStream],
+  );
+
+  // Also watch for remoteStream changes after the element is already mounted.
+  // This handles the case where the element mounted BEFORE the stream arrived.
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      console.log(
+        "[CallOverlay] Updating remote srcObject via effect",
+        remoteStream.getTracks(),
+      );
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  // Imperatively set srcObject whenever the local stream changes
   useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current) {
-      console.log("Attaching remote stream to video element", remoteStream);
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
 
   useEffect(() => {
     if (bgVideoRef.current) {
@@ -137,12 +158,11 @@ const CallOverlay = ({
           }`}
         >
           <video
-            ref={remoteVideoRef}
+            ref={assignRemoteVideo}
             autoPlay
             playsInline
             className="w-full h-full object-cover"
           />
-          {/* Subtle overlay for UI readability */}
           {!isAudioOnly && <div className="absolute inset-0 bg-black/10" />}
         </div>
       )}
@@ -150,7 +170,10 @@ const CallOverlay = ({
       <div className="relative z-10 w-full h-full max-w-5xl flex flex-col items-center justify-between p-6 md:p-12">
         {/* Top Info - Caller Details */}
         <div className="w-full flex flex-col items-center mt-10 space-y-4 animate-in fade-in slide-in-from-top duration-700">
-          {(!showRemoteVideo || status !== CallStatus.ACTIVE) && (
+          {(isAudioOnly ||
+            !remoteStream ||
+            isRemoteVideoOff ||
+            status !== CallStatus.ACTIVE) && (
             <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-gray-800 transition-all duration-500 scale-100 hover:scale-105">
               <Image
                 src={
