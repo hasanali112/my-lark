@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useUser } from "@/providers/UserProvider";
+import { useSocketContext } from "@/providers/SocketProvider";
 
 interface Friend {
   user_id: string;
@@ -12,20 +13,28 @@ interface Friend {
   fullName: string;
   avatar: string | null;
   status: "ONLINE" | "OFFLINE";
+  lastMessage?: {
+    content: string;
+    createdAt: string;
+    sender_id: string;
+  } | null;
 }
 
 interface ChatSidebarProps {
   isConnected: boolean;
   onlineUsers: string[];
+  unreadCounts: Record<string, number>;
   onSelectFriend: (friend: Friend) => void;
 }
 
 const ChatSidebar = ({
   isConnected,
   onlineUsers,
+  unreadCounts,
   onSelectFriend,
 }: ChatSidebarProps) => {
   const { user } = useUser();
+  const { socket } = useSocketContext();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -49,6 +58,48 @@ const ChatSidebar = ({
     };
     fetchFriends();
   }, []);
+
+  // Listen for real-time message updates to update previews and order
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (msg: any) => {
+      setFriends((prev) => {
+        const friendId =
+          msg.sender_id === user?.user_id ? msg.receiver_id : msg.sender_id;
+
+        const updatedFriends = prev.map((f) => {
+          if (f.user_id === friendId) {
+            return {
+              ...f,
+              lastMessage: {
+                content: msg.content,
+                createdAt: msg.createdAt,
+                sender_id: msg.sender_id,
+              },
+            };
+          }
+          return f;
+        });
+
+        // Re-sort: move most recent activity to top
+        return [...updatedFriends].sort((a, b) => {
+          const timeA = a.lastMessage
+            ? new Date(a.lastMessage.createdAt).getTime()
+            : 0;
+          const timeB = b.lastMessage
+            ? new Date(b.lastMessage.createdAt).getTime()
+            : 0;
+          return timeB - timeA;
+        });
+      });
+    };
+
+    socket.on("new-message", handleNewMessage);
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [socket, user?.user_id]);
 
   const isUserOnline = (userId: string) => onlineUsers.includes(userId);
 
@@ -102,42 +153,69 @@ const ChatSidebar = ({
             people.
           </p>
         ) : (
-          filteredFriends.map((friend) => (
-            <div
-              key={friend.user_id}
-              onClick={() => onSelectFriend(friend)}
-              className="flex items-center p-4 cursor-pointer hover:bg-[#F5F6F7] transition-colors border-l-4 border-transparent"
-            >
-              <div className="relative shrink-0">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
-                  {friend.avatar ? (
-                    <Image
-                      src={friend.avatar}
-                      alt={friend.username}
-                      width={48}
-                      height={48}
-                      className="object-cover"
-                    />
-                  ) : (
-                    (friend.fullName?.[0] || friend.username[0]).toUpperCase()
-                  )}
+          filteredFriends.map((friend) => {
+            const unreadCount = unreadCounts[friend.user_id] || 0;
+            const lastMsg = friend.lastMessage;
+
+            return (
+              <div
+                key={friend.user_id}
+                onClick={() => onSelectFriend(friend)}
+                className="flex items-center p-4 cursor-pointer hover:bg-[#F5F6F7] transition-colors border-l-4 border-transparent"
+              >
+                <div className="relative shrink-0">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
+                    {friend.avatar ? (
+                      <Image
+                        src={friend.avatar}
+                        alt={friend.username}
+                        width={48}
+                        height={48}
+                        className="object-cover h-full w-full"
+                      />
+                    ) : (
+                      (friend.fullName?.[0] || friend.username[0]).toUpperCase()
+                    )}
+                  </div>
+                  <div
+                    className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${isUserOnline(friend.user_id) ? "bg-green-500" : "bg-gray-400"}`}
+                  ></div>
                 </div>
-                <div
-                  className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${isUserOnline(friend.user_id) ? "bg-green-500" : "bg-gray-400"}`}
-                ></div>
-              </div>
-              <div className="ml-3 flex-1 min-w-0">
-                <div className="flex justify-between items-baseline mb-1">
-                  <h3 className="text-sm font-semibold truncate text-[#1F2329]">
-                    {friend.fullName || friend.username}
-                  </h3>
+                <div className="ml-3 flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-0.5">
+                    <h3
+                      className={`text-sm truncate ${unreadCount > 0 ? "font-bold text-[#1F2329]" : "font-semibold text-[#1F2329]/80"}`}
+                    >
+                      {friend.fullName || friend.username}
+                    </h3>
+                    <div className="flex items-center space-x-2">
+                      {lastMsg && (
+                        <span className="text-[10px] text-[#646A73] font-medium whitespace-nowrap">
+                          {new Date(lastMsg.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                      {unreadCount > 0 && (
+                        <span className="bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p
+                    className={`text-xs truncate leading-tight ${unreadCount > 0 ? "font-bold text-[#1F2329]" : "text-[#646A73]"}`}
+                  >
+                    {lastMsg
+                      ? (lastMsg.sender_id === user?.user_id ? "You: " : "") +
+                        lastMsg.content
+                      : `@${friend.username}`}
+                  </p>
                 </div>
-                <p className="text-xs text-[#646A73] truncate leading-tight">
-                  @{friend.username}
-                </p>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

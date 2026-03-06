@@ -11,6 +11,42 @@ export default function ChatPage() {
   const { isConnected, onlineUsers, socket } = useSocketContext();
   const { user } = useUser();
   const [selectedFriend, setSelectedFriend] = React.useState<any>(null);
+  const [unreadCounts, setUnreadCounts] = React.useState<
+    Record<string, number>
+  >({});
+
+  // Listen for new messages globally in the chat page to track unreads
+  React.useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (message: any) => {
+      // If the message is from someone else and they are NOT the active chat, mark as unread
+      if (
+        message.sender_id !== user?.user_id &&
+        (!selectedFriend || selectedFriend.user_id !== message.sender_id)
+      ) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [message.sender_id]: (prev[message.sender_id] || 0) + 1,
+        }));
+      }
+    };
+
+    socket.on("new-message", handleNewMessage);
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [socket, selectedFriend, user?.user_id]);
+
+  const handleSelectFriend = (friend: any) => {
+    setSelectedFriend(friend);
+    // Clear unreads for this friend
+    setUnreadCounts((prev) => {
+      const next = { ...prev };
+      delete next[friend.user_id];
+      return next;
+    });
+  };
 
   // Map selected friend to activeUser format expected by ConversationView
   const activeUser = selectedFriend
@@ -30,7 +66,8 @@ export default function ChatPage() {
         <ChatSidebar
           isConnected={isConnected}
           onlineUsers={onlineUsers}
-          onSelectFriend={setSelectedFriend}
+          onSelectFriend={handleSelectFriend}
+          unreadCounts={unreadCounts}
         />
         <main className="flex-1 flex flex-col min-w-0 bg-white">
           {activeUser ? (

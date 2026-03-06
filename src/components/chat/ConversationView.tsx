@@ -1,5 +1,21 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { useSocketContext } from "@/providers/SocketProvider";
+import { useUser } from "@/providers/UserProvider";
+import { apiFetch } from "@/lib/api";
+
+interface Message {
+  message_id: string;
+  content: string;
+  sender_id: string;
+  createdAt: string;
+  sender: {
+    user_id: string;
+    username: string;
+    fullName: string | null;
+    avatar: string | null;
+  };
+}
 
 interface ConversationViewProps {
   activeUser: {
@@ -11,45 +27,77 @@ interface ConversationViewProps {
 }
 
 const ConversationView = ({ activeUser }: ConversationViewProps) => {
-  const messages = [
-    {
-      id: 1,
-      sender: "Sarah",
-      content: "The latest urban development data just came in for district 4.",
-      time: "9:30 AM",
-      isOwn: false,
-    },
-    {
-      id: 2,
-      sender: "Hasan",
-      content: "Great, let me take a look at the energy consumption charts.",
-      time: "9:31 AM",
-      isOwn: true,
-    },
-    {
-      id: 3,
-      sender: "Sarah",
-      content:
-        "I notice a spike in traffic demand near the new tech park. We might need to adjust the automated routing.",
-      time: "10:15 AM",
-      isOwn: false,
-    },
-    {
-      id: 4,
-      sender: "Sarah",
-      content: "Sending the updated routing parameters now.",
-      time: "10:16 AM",
-      isOwn: false,
-    },
-    {
-      id: 5,
-      sender: "Hasan",
-      content:
-        "Received. Calibrating the sensors now. Will push live in 5 mins.",
-      time: "10:42 AM",
-      isOwn: true,
-    },
-  ];
+  const { socket } = useSocketContext();
+  const { user } = useUser();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Fetch History
+  useEffect(() => {
+    if (!activeUser?.userId) return;
+    const fetchHistory = async () => {
+      try {
+        const res = await apiFetch(`/messages/history/${activeUser.userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data.data || data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch history", err);
+      }
+    };
+    fetchHistory();
+  }, [activeUser.userId]);
+
+  // Socket Listener
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (message: Message) => {
+      // Only add message if it belongs to the current conversation
+      if (
+        message.sender_id === activeUser.userId ||
+        message.sender_id === user?.user_id
+      ) {
+        setMessages((prev) => {
+          // Check if message already exists to avoid duplicates
+          if (prev.some((m) => m.message_id === message.message_id))
+            return prev;
+          return [...prev, message];
+        });
+      }
+    };
+
+    socket.on("new-message", handleNewMessage);
+
+    return () => {
+      socket.off("new-message", handleNewMessage);
+    };
+  }, [socket, activeUser.userId, user?.user_id]);
+
+  const handleSendMessage = (e: React.FormEvent | React.KeyboardEvent) => {
+    if ("key" in e && e.key !== "Enter") return;
+    if ("key" in e && e.shiftKey) return;
+    e.preventDefault();
+
+    if (!newMessage.trim() || !socket) return;
+
+    socket.emit("send-message", {
+      receiverId: activeUser.userId,
+      content: newMessage.trim(),
+    });
+
+    setNewMessage("");
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -63,6 +111,7 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
                 alt={activeUser.name}
                 width={40}
                 height={40}
+                className="object-cover h-full w-full"
               />
             </div>
             <div
@@ -76,7 +125,7 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
             <p
               className={`text-[10px] font-medium ${activeUser.isOnline ? "text-green-600" : "text-[#646A73]"}`}
             >
-              {activeUser.isOnline ? "Online • 4 members" : "Offline"}
+              {activeUser.isOnline ? "Online" : "Offline"}
             </p>
           </div>
         </div>
@@ -131,51 +180,87 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
       </header>
 
       {/* Message Feed */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F5F6F7]/30">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
-          >
-            {!msg.isOwn && (
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 mr-2 mt-1 shrink-0">
-                <Image
-                  src="https://i.pravatar.cc/100?img=11"
-                  alt={msg.sender}
-                  width={32}
-                  height={32}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F5F6F7]/30 flex flex-col">
+        {messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+              <svg
+                className="w-8 h-8 text-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
                 />
-              </div>
-            )}
-            <div className={`group relative flex-1`}>
-              <div
-                className={`p-4 rounded-2xl text-sm ${
-                  msg.isOwn
-                    ? "bg-primary text-white rounded-tr-none"
-                    : "bg-white text-[#1F2329] border border-[#DEE0E3] rounded-tl-none"
-                }`}
-              >
-                {msg.content}
-              </div>
-              <p
-                className={`text-[10px] text-[#646A73] mt-1 ${msg.isOwn ? "text-right" : "text-left"}`}
-              >
-                {msg.time}
-              </p>
+              </svg>
             </div>
+            <p className="text-sm font-medium">
+              No messages yet. Send a wave! 👋
+            </p>
           </div>
-        ))}
-        <div className="flex items-center space-x-2 text-[#646A73] text-[10px] opacity-60">
-          <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-          <span>Sarah Jenkins is typing...</span>
-        </div>
+        ) : (
+          messages.map((msg) => {
+            const isOwn = msg.sender_id === user?.user_id;
+            return (
+              <div
+                key={msg.message_id}
+                className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+              >
+                {!isOwn && (
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 mr-2 mt-1 shrink-0">
+                    <Image
+                      src={
+                        msg.sender.avatar ||
+                        `https://ui-avatars.com/api/?name=${msg.sender.username}&background=random`
+                      }
+                      alt={msg.sender.username}
+                      width={32}
+                      height={32}
+                      className="object-cover h-full w-full"
+                    />
+                  </div>
+                )}
+                <div className={`group relative max-w-[80%]`}>
+                  <div
+                    className={`p-4 rounded-2xl text-sm ${
+                      isOwn
+                        ? "bg-primary text-white rounded-tr-none"
+                        : "bg-white text-[#1F2329] border border-[#DEE0E3] rounded-tl-none"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  <p
+                    className={`text-[10px] text-[#646A73] mt-1 ${isOwn ? "text-right" : "text-left"}`}
+                  >
+                    {new Date(msg.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Chat Input */}
-      <div className="p-6 bg-white border-t border-[#DEE0E3] shrink-0">
+      <form
+        onSubmit={handleSendMessage}
+        className="p-6 bg-white border-t border-[#DEE0E3] shrink-0"
+      >
         <div className="flex items-end space-x-4">
           <div className="flex-1 flex items-center space-x-3 bg-[#F5F6F7] rounded-xl px-4 py-3 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
-            <button className="text-[#646A73] hover:text-primary transition-colors">
+            <button
+              type="button"
+              className="text-[#646A73] hover:text-primary transition-colors"
+            >
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -192,10 +277,16 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
             </button>
             <textarea
               rows={1}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleSendMessage}
               placeholder="Type your message here..."
               className="flex-1 bg-transparent border-none resize-none text-sm outline-none max-h-32 placeholder-[#646A73]/60"
             />
-            <button className="text-[#646A73] hover:text-primary transition-colors">
+            <button
+              type="button"
+              className="text-[#646A73] hover:text-primary transition-colors"
+            >
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -211,7 +302,11 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
               </svg>
             </button>
           </div>
-          <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 shrink-0">
+          <button
+            type="submit"
+            disabled={!newMessage.trim()}
+            className="bg-primary text-white p-3 rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 shrink-0 disabled:opacity-50 disabled:shadow-none"
+          >
             <svg
               className="w-5 h-5"
               fill="none"
@@ -230,7 +325,7 @@ const ConversationView = ({ activeUser }: ConversationViewProps) => {
         <p className="mt-2 text-[10px] text-[#646A73]/60 text-center">
           Press Enter to send, Shift + Enter for new line
         </p>
-      </div>
+      </form>
     </div>
   );
 };
