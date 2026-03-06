@@ -197,10 +197,19 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-          remoteStreamRef.current = event.streams[0];
-          setRemoteStream(event.streams[0]);
-        }
+        console.log("OnTrack event received:", event.streams);
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        remoteStreamRef.current = stream;
+        setRemoteStream(stream);
+
+        // Listen for track changes (unmute/enable)
+        event.track.onunmute = () => {
+          if (remoteStreamRef.current) {
+            setRemoteStream(
+              new MediaStream(remoteStreamRef.current.getTracks()),
+            );
+          }
+        };
       };
 
       if (localStreamRef.current) {

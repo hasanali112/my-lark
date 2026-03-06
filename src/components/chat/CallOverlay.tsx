@@ -74,17 +74,36 @@ const CallOverlay = ({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-fade-in overflow-hidden">
-      {/* Dynamic Background Mirror */}
+      {/* Dynamic Background Mirror / Placeholder */}
       <div className="absolute inset-0 z-0">
         <video
           ref={bgVideoRef}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover opacity-40 blur-2xl scale-110 transition-opacity duration-1000 ${(status === CallStatus.ACTIVE && isRemoteVideoOff) || (status !== CallStatus.ACTIVE && isLocalVideoOff) ? "opacity-0" : "opacity-40"}`}
+          className={`w-full h-full object-cover blur-2xl scale-110 transition-opacity duration-1000 ${
+            (status === CallStatus.ACTIVE && isRemoteVideoOff) ||
+            (status !== CallStatus.ACTIVE && isLocalVideoOff)
+              ? "opacity-40"
+              : "opacity-0"
+          }`}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/80" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90" />
       </div>
+
+      {/* Main Remote Video (Full Screen) */}
+      {showRemoteVideo && status === CallStatus.ACTIVE && (
+        <div className="absolute inset-0 z-1 animate-in fade-in duration-1000">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover"
+          />
+          {/* Subtle overlay for UI readability */}
+          <div className="absolute inset-0 bg-black/10" />
+        </div>
+      )}
 
       <div className="relative z-10 w-full h-full max-w-5xl flex flex-col items-center justify-between p-6 md:p-12">
         {/* Top Info - Caller Details */}
@@ -121,21 +140,9 @@ const CallOverlay = ({
           </div>
         </div>
 
-        {/* Center - Remote Video Stream */}
-        {showRemoteVideo && status === CallStatus.ACTIVE && (
-          <div className="absolute inset-0 z-[-1] animate-in fade-in duration-1000">
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
-
         {/* Local Mini-Preview - Draggable-style positioning */}
         {localStream && status !== CallStatus.INCOMING && (
-          <div className="absolute top-8 right-8 w-32 h-44 md:w-48 md:h-64 bg-gray-900/40 backdrop-blur-md rounded-3xl overflow-hidden border border-white/20 shadow-2xl z-20 transition-all hover:scale-[1.02]">
+          <div className="absolute top-8 right-8 w-32 h-44 md:w-56 md:h-72 bg-gray-900 border-2 border-white/20 shadow-2xl z-30 transition-all rounded-3xl overflow-hidden">
             <video
               ref={localVideoRef}
               autoPlay
