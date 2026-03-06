@@ -37,9 +37,9 @@ export default function LoginPage() {
         throw new Error(data.message || "Login failed");
       }
 
-      // Store token in a cookie
+      // Store token in a cookie locally for frontend apiFetch to read
       if (data.access_token) {
-        // Backend now sets the HttpOnly cookie for auth_token automatically
+        document.cookie = `auth_token=${data.access_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
       }
 
       router.push("/");

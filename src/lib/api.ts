@@ -47,8 +47,15 @@ export async function apiFetch(
     }
   }
 
+  const token = getCookie("auth_token");
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(url, {
     ...init,
+    headers,
     credentials: "include",
   });
 

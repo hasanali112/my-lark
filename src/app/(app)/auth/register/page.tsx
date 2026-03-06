@@ -36,6 +36,10 @@ export default function RegisterPage() {
         throw new Error(data.message || "Something went wrong");
       }
 
+      if (data.access_token) {
+        document.cookie = `auth_token=${data.access_token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+      }
+
       router.push("/");
       router.refresh();
     } catch (err: any) {
