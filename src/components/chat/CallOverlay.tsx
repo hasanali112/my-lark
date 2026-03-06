@@ -135,8 +135,12 @@ const CallOverlay = ({
       </div>
 
       {/* Main Remote Video (Full Screen) */}
-      {showRemoteVideo && status === CallStatus.ACTIVE && (
-        <div className="absolute inset-0 z-1 animate-in fade-in duration-1000">
+      {status === CallStatus.ACTIVE && (
+        <div
+          className={`absolute inset-0 z-1 animate-in fade-in duration-1000 ${
+            isAudioOnly ? "invisible pointer-events-none" : ""
+          }`}
+        >
           <video
             ref={remoteVideoRef}
             autoPlay
@@ -144,7 +148,7 @@ const CallOverlay = ({
             className="w-full h-full object-cover"
           />
           {/* Subtle overlay for UI readability */}
-          <div className="absolute inset-0 bg-black/10" />
+          {!isAudioOnly && <div className="absolute inset-0 bg-black/10" />}
         </div>
       )}
 

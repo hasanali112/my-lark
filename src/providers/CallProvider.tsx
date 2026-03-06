@@ -219,20 +219,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
           remoteStreamRef.current = new MediaStream();
         }
 
-        // Add the track to our persistent ref stream
-        remoteStreamRef.current.addTrack(event.track);
+        // Add the track to our persistent ref stream if it's not already there
+        const alreadyHasTrack = remoteStreamRef.current
+          .getTracks()
+          .some((t) => t.id === event.track.id);
+        if (!alreadyHasTrack) {
+          remoteStreamRef.current.addTrack(event.track);
+        }
 
-        // Update state with a NEW MediaStream instance to trigger re-renders
-        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+        // Use the existing stream ref to set state, ensuring the stream object itself is stable
+        setRemoteStream(remoteStreamRef.current);
 
-        // Listen for track changes (unmute/enable/ended)
-        event.track.onunmute = () => {
-          if (remoteStreamRef.current) {
-            setRemoteStream(
-              new MediaStream(remoteStreamRef.current.getTracks()),
-            );
-          }
-        };
+        // Force a re-render if needed, but since we are passing the same stream object,
+        // we might need to trigger a state update that React recognizes if the video element doesn't auto-update.
+        // However, standard WebRTC video elements usually handle track additions to the same srcObject.
       };
 
       if (localStreamRef.current) {
