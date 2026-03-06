@@ -54,7 +54,7 @@ const CallOverlay = ({
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={`w-full h-full object-cover ${!isAudioOnly && remoteStream ? "block" : "hidden"}`}
+            className={`w-full h-full object-cover ${!isAudioOnly && remoteStream ? "block" : "absolute inset-0 opacity-0 pointer-events-none"}`}
           />
 
           {(isAudioOnly || !remoteStream) && (

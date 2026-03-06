@@ -5,8 +5,7 @@ import Image from "next/image";
 import { useSocketContext } from "@/providers/SocketProvider";
 import { useUser } from "@/providers/UserProvider";
 import { apiFetch } from "@/lib/api";
-import { useWebRTC } from "@/hooks/useWebRTC";
-import CallOverlay from "./CallOverlay";
+import { useCall } from "@/providers/CallProvider";
 
 interface Message {
   message_id: string;
@@ -48,7 +47,7 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
     rejectCall,
     endCall,
     isAudioOnly,
-  } = useWebRTC();
+  } = useCall();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -373,18 +372,6 @@ const ConversationView = ({ activeUser, onBack }: ConversationViewProps) => {
           Press Enter to send, Shift + Enter for new line
         </p>
       </form>
-
-      {/* WebRTC Call Overlay */}
-      <CallOverlay
-        status={callStatus}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        remoteUser={remoteUser}
-        acceptCall={acceptCall}
-        rejectCall={rejectCall}
-        endCall={endCall}
-        isAudioOnly={isAudioOnly}
-      />
     </div>
   );
 };

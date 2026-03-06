@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/providers/UserProvider";
 import { SocketProvider } from "@/providers/SocketProvider";
+import { CallProvider } from "@/providers/CallProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <UserProvider>
-          <SocketProvider>{children}</SocketProvider>
+          <SocketProvider>
+            <CallProvider>{children}</CallProvider>
+          </SocketProvider>
         </UserProvider>
       </body>
     </html>
