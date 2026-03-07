@@ -242,6 +242,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLocalVideoOff(false);
     setIsRemoteMuted(false);
     setIsRemoteVideoOff(false);
+    setIsAudioOnly(false);
+    isAudioOnlyRef.current = false;
     setCallDuration(0);
   }, [stopRingtone]);
 
