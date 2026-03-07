@@ -78,40 +78,49 @@ const CallOverlay = ({
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Safe play helper: ignores AbortError (caused by rapid src changes / element removal)
+  // Always-current ref so callback refs can read the latest stream without
+  // being listed as a useCallback dependency (which would cause remounts).
+  const latestRemoteStreamRef = useRef<MediaStream | null>(null);
+  latestRemoteStreamRef.current = remoteStream;
+
+  // Safe play helper: ignores AbortError (element updated before play() finished)
   const safePlay = (video: HTMLVideoElement) => {
     const promise = video.play();
     if (promise !== undefined) {
       promise.catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          // Silently ignore – element was updated before play() completed
-          return;
-        }
+        if (err instanceof DOMException && err.name === "AbortError") return;
         console.warn("[CallOverlay] play() failed:", err);
       });
     }
   };
 
-  // Callback ref for remote video – NO stream dependency so the element is
-  // never re-created when the stream updates (avoids unmount → AbortError).
+  // Callback ref – stable ([] deps) so the video element is NEVER remounted.
+  // Uses latestRemoteStreamRef to handle the case where the stream arrived
+  // before the element mounted (assignRemoteVideo fires after mount).
   const assignRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
     remoteVideoRef.current = node;
-    if (node && remoteVideoRef.current?.srcObject) {
+    if (node && latestRemoteStreamRef.current) {
+      console.log("[CallOverlay] assignRemoteVideo: assigning stream on mount");
+      node.srcObject = latestRemoteStreamRef.current;
       safePlay(node);
     }
   }, []);
 
-  // Update remote video srcObject whenever the stream changes.
-  // The video element stays in the DOM; only srcObject is swapped.
+  // Keep video srcObject in sync with the remoteStream prop.
   useEffect(() => {
     const video = remoteVideoRef.current;
-    if (video && remoteStream) {
+    if (!video) return;
+
+    if (remoteStream) {
       console.log(
-        "[CallOverlay] Updating remote srcObject",
-        remoteStream.getTracks(),
+        "[CallOverlay] useEffect: setting srcObject, tracks:",
+        remoteStream.getTracks().map((t) => t.kind),
       );
       video.srcObject = remoteStream;
       safePlay(video);
+    } else {
+      // Clear stale stream between calls
+      video.srcObject = null;
     }
   }, [remoteStream]);
 

@@ -262,23 +262,38 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       };
 
       pc.ontrack = (event) => {
-        console.log("OnTrack event received:", event.track.kind);
+        console.log(
+          "[WebRTC] ontrack received:",
+          event.track.kind,
+          event.track.id,
+        );
 
-        if (!remoteStreamRef.current) {
+        const isNewStream = !remoteStreamRef.current;
+        if (isNewStream) {
+          // Create stream once; subsequent tracks are added to the SAME live object.
+          // MediaStream is mutable – adding tracks automatically updates any
+          // connected <video> element without needing to replace srcObject.
           remoteStreamRef.current = new MediaStream();
         }
 
-        // Add the track to our persistent ref stream if it's not already there
-        const alreadyHasTrack = remoteStreamRef.current
-          .getTracks()
+        const alreadyHasTrack = remoteStreamRef
+          .current!.getTracks()
           .some((t) => t.id === event.track.id);
+
         if (!alreadyHasTrack) {
-          remoteStreamRef.current.addTrack(event.track);
+          remoteStreamRef.current!.addTrack(event.track);
+          console.log(
+            "[WebRTC] track added to stream, total tracks:",
+            remoteStreamRef.current!.getTracks().length,
+          );
         }
 
-        // Create a NEW MediaStream instance from the same tracks to trigger React state update
-        // (React won't re-render if we pass the same object reference)
-        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
+        if (isNewStream) {
+          // Trigger React state update only once (when stream is first created).
+          // The live MediaStream reference then stays the same, avoiding repeated
+          // srcObject replacements that cause AbortError.
+          setRemoteStream(remoteStreamRef.current);
+        }
       };
 
       if (localStreamRef.current) {
