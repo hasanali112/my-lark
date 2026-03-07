@@ -429,6 +429,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         roomId: string;
         fromSocketId: string;
       }) => {
+        if (!localStreamRef.current) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: !isAudioOnlyRef.current,
+              audio: true,
+            });
+            localStreamRef.current = stream;
+            setLocalStream(stream);
+          } catch (err) {
+            console.error("Failed to get local stream in receive-offer", err);
+            cleanup();
+            return;
+          }
+        }
         const pc = createPeerConnection(data.fromSocketId, data.roomId);
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
         const answer = await pc.createAnswer();
