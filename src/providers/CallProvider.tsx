@@ -53,6 +53,21 @@ export const useCall = () => {
   return context;
 };
 
+// ─── HD media constraints (Messenger-quality) ────────────────────────────────
+const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
+  frameRate: { ideal: 30 },
+  facingMode: "user",
+};
+
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  sampleRate: 48000,
+};
+
 export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const { socket } = useSocketContext();
   const [callStatus, setCallStatus] = useState<CallStatus>(CallStatus.IDLE);
@@ -68,6 +83,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
+  // ─── FIX 1: ICE Candidate Queue ─────────────────────────────────────────────
+  // Candidates arriving before setRemoteDescription() was called are queued
+  // and flushed immediately after remote description is set.
+  const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isLocalMuted, setIsLocalMuted] = useState(false);
@@ -75,6 +95,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const [isRemoteMuted, setIsRemoteMuted] = useState(false);
   const [isRemoteVideoOff, setIsRemoteVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+
+  const isAudioOnlyRef = useRef(false);
+  const callStatusRef = useRef<CallStatus>(CallStatus.IDLE);
 
   useEffect(() => {
     if (
@@ -85,7 +108,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Warn user before reloading/closing during an active call
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (callStatusRef.current !== CallStatus.IDLE) {
@@ -99,15 +121,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
-  // Safely play an audio element, ignoring AbortError from rapid start/stop
   const safeAudioPlay = useCallback((audio: HTMLAudioElement) => {
     const promise = audio.play();
     if (promise !== undefined) {
       promise.catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          // Ringtone was stopped before it could start – safe to ignore
-          return;
-        }
+        if (err instanceof DOMException && err.name === "AbortError") return;
         console.warn("[CallProvider] Audio play failed:", err);
       });
     }
@@ -187,47 +205,28 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [callStatus]);
 
-  const isAudioOnlyRef = useRef(false);
-  const callStatusRef = useRef<CallStatus>(CallStatus.IDLE);
-
-  // Fetch short-lived ICE credentials from Xirsys before every call.
-  // Dynamic tokens are safer and more reliable than static credentials.
+  // ─── FIX 2: ICE credentials via backend (never expose secret client-side) ───
+  // Create /app/api/turn-credentials/route.ts — see comment at bottom of file.
   const getIceServers = useCallback(async (): Promise<RTCIceServer[]> => {
     const fallback: RTCIceServer[] = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
     ];
-
     try {
-      const ident = "hasanali";
-      const secret = "8ab703b6-1a2a-11f1-a386-0242ac140002";
-      const channel = "my-book";
-      const token = Buffer.from(`${ident}:${secret}`).toString("base64");
-
-      const res = await fetch(`https://global.xirsys.net/_turn/${channel}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Basic ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ format: "urls" }),
-      });
-
-      if (!res.ok) throw new Error(`Xirsys responded ${res.status}`);
-
-      const data = await res.json();
-      const servers: RTCIceServer[] = data?.v?.iceServers ?? [];
-      console.log("[ICE] Xirsys servers loaded:", servers.length);
-      // Always include a STUN fallback
+      const res = await fetch("/api/turn-credentials");
+      if (!res.ok) throw new Error(`Turn API ${res.status}`);
+      const servers: RTCIceServer[] = await res.json();
+      console.log("[ICE] TURN servers loaded:", servers.length);
       return [...fallback, ...servers];
     } catch (err) {
-      console.warn("[ICE] Xirsys fetch failed, using fallback STUN:", err);
+      console.warn("[ICE] TURN fetch failed, falling back to STUN only:", err);
       return fallback;
     }
   }, []);
 
   const cleanup = useCallback(() => {
-    stopRingtone(); // Ensure ringtone stops
+    stopRingtone();
+    iceCandidateQueueRef.current = []; // ← always reset queue on cleanup
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -257,6 +256,21 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     setCallDuration(0);
   }, [stopRingtone]);
 
+  // ─── Helper: flush queued ICE candidates after remoteDescription is set ─────
+  const flushIceCandidateQueue = useCallback(async (pc: RTCPeerConnection) => {
+    const queue = iceCandidateQueueRef.current;
+    if (queue.length === 0) return;
+    console.log(`[ICE] Flushing ${queue.length} queued candidate(s)`);
+    iceCandidateQueueRef.current = [];
+    for (const candidate of queue) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error("[ICE] Error flushing queued candidate:", e);
+      }
+    }
+  }, []);
+
   const createPeerConnection = useCallback(
     async (targetSocketId: string, currentRoomId: string) => {
       const iceServers = await getIceServers();
@@ -275,18 +289,65 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
 
+      // ─── FIX 3: Connection state monitoring + auto ICE-restart ─────────────
+      pc.onconnectionstatechange = () => {
+        console.log("[WebRTC] Connection state:", pc.connectionState);
+        if (pc.connectionState === "connected") {
+          setCallStatus(CallStatus.ACTIVE);
+          callStatusRef.current = CallStatus.ACTIVE;
+        }
+        if (
+          pc.connectionState === "failed" ||
+          pc.connectionState === "disconnected"
+        ) {
+          console.warn("[WebRTC] Connection lost — attempting ICE restart");
+          pc.restartIce();
+        }
+        if (pc.connectionState === "closed") {
+          cleanup();
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log("[ICE] Connection state:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "failed") {
+          console.warn("[ICE] Failed — restarting ICE");
+          pc.restartIce();
+        }
+      };
+
+      // ─── FIX 3: Connection state monitoring + auto ICE-restart ─────────────
+      pc.onconnectionstatechange = () => {
+        console.log("[WebRTC] Connection state:", pc.connectionState);
+        if (pc.connectionState === "connected") {
+          setCallStatus(CallStatus.ACTIVE);
+          callStatusRef.current = CallStatus.ACTIVE;
+        }
+        if (
+          pc.connectionState === "failed" ||
+          pc.connectionState === "disconnected"
+        ) {
+          console.warn("[WebRTC] Connection lost — attempting ICE restart");
+          pc.restartIce();
+        }
+        if (pc.connectionState === "closed") {
+          cleanup();
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log("[ICE] Connection state:", pc.iceConnectionState);
+        if (pc.iceConnectionState === "failed") {
+          console.warn("[ICE] Failed — restarting ICE");
+          pc.restartIce();
+        }
+      };
+
       pc.ontrack = (event) => {
-        console.log(
-          "[WebRTC] ontrack received:",
-          event.track.kind,
-          event.track.id,
-        );
+        console.log("[WebRTC] ontrack:", event.track.kind, event.track.id);
 
         const isNewStream = !remoteStreamRef.current;
         if (isNewStream) {
-          // Create stream once; subsequent tracks are added to the SAME live object.
-          // MediaStream is mutable – adding tracks automatically updates any
-          // connected <video> element without needing to replace srcObject.
           remoteStreamRef.current = new MediaStream();
         }
 
@@ -297,15 +358,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         if (!alreadyHasTrack) {
           remoteStreamRef.current!.addTrack(event.track);
           console.log(
-            "[WebRTC] track added to stream, total tracks:",
+            "[WebRTC] track added, total:",
             remoteStreamRef.current!.getTracks().length,
           );
         }
 
         if (isNewStream) {
-          // Trigger React state update only once (when stream is first created).
-          // The live MediaStream reference then stays the same, avoiding repeated
-          // srcObject replacements that cause AbortError.
           setRemoteStream(remoteStreamRef.current);
         }
       };
@@ -319,8 +377,16 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       peerConnectionRef.current = pc;
       return pc;
     },
-    [socket, getIceServers],
+    [socket, getIceServers, cleanup],
   );
+
+  // ─── FIX 4: HD getUserMedia helper ─────────────────────────────────────────
+  const getLocalStream = useCallback(async (video: boolean) => {
+    return navigator.mediaDevices.getUserMedia({
+      video: video ? VIDEO_CONSTRAINTS : false,
+      audio: AUDIO_CONSTRAINTS,
+    });
+  }, []);
 
   const initiateCall = useCallback(
     async (receiverId: string, video: boolean = true) => {
@@ -331,20 +397,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       callStatusRef.current = CallStatus.INITIATING;
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: video,
-          audio: true,
-        });
+        const stream = await getLocalStream(video);
         localStreamRef.current = stream;
         setLocalStream(stream);
         playOutgoingRingtone();
         socket.emit("initiate-call", { receiverId, video });
       } catch (err) {
-        console.error("Failed to get media devices", err);
+        console.error("Failed to get media devices:", err);
         cleanup();
       }
     },
-    [socket, cleanup],
+    [socket, cleanup, getLocalStream, playOutgoingRingtone],
   );
 
   useEffect(() => {
@@ -374,10 +437,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setCallStatus(CallStatus.INCOMING);
         callStatusRef.current = CallStatus.INCOMING;
 
-        // Audio Alert
         playRingtone();
 
-        // Browser Notification
         if (Notification.permission === "granted") {
           const notification = new Notification(
             `Incoming Call from ${data.caller.username}`,
@@ -388,7 +449,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
               requireInteraction: true,
             },
           );
-
           notification.onclick = () => {
             window.focus();
             notification.close();
@@ -410,14 +470,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
         if (!localStreamRef.current) {
           try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: !isAudioOnlyRef.current,
-              audio: true,
-            });
+            const stream = await getLocalStream(!isAudioOnlyRef.current);
             localStreamRef.current = stream;
             setLocalStream(stream);
           } catch (err) {
-            console.error("Failed to get local stream on accept", err);
+            console.error("Failed to get local stream on accept:", err);
             cleanup();
             return;
           }
@@ -443,22 +500,25 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         roomId: string;
         fromSocketId: string;
       }) => {
+        // ─── FIX 1 (receiver side): ensure stream before creating PC ─────────
         if (!localStreamRef.current) {
           try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: !isAudioOnlyRef.current,
-              audio: true,
-            });
+            const stream = await getLocalStream(!isAudioOnlyRef.current);
             localStreamRef.current = stream;
             setLocalStream(stream);
           } catch (err) {
-            console.error("Failed to get local stream in receive-offer", err);
+            console.error("Failed to get local stream in receive-offer:", err);
             cleanup();
             return;
           }
         }
+
         const pc = await createPeerConnection(data.fromSocketId, data.roomId);
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+        // Flush any ICE candidates that arrived before remote description
+        await flushIceCandidateQueue(pc);
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("send-answer", {
@@ -482,6 +542,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(data.answer),
           );
+
+          // Flush any ICE candidates that arrived before remote description
+          await flushIceCandidateQueue(peerConnectionRef.current);
+
           setCallStatus(CallStatus.ACTIVE);
           callStatusRef.current = CallStatus.ACTIVE;
         }
@@ -495,14 +559,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         roomId: string;
         fromSocketId: string;
       }) => {
-        if (peerConnectionRef.current) {
-          try {
-            await peerConnectionRef.current.addIceCandidate(
-              new RTCIceCandidate(data.candidate),
-            );
-          } catch (e) {
-            console.error("Error adding ice candidate", e);
-          }
+        const pc = peerConnectionRef.current;
+        if (!pc) return;
+
+        // ─── FIX 1: Queue candidate if remoteDescription not set yet ─────────
+        if (!pc.remoteDescription) {
+          console.log("[ICE] Queuing candidate (no remoteDescription yet)");
+          iceCandidateQueueRef.current.push(data.candidate);
+          return;
+        }
+
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch (e) {
+          console.error("[ICE] Error adding candidate:", e);
         }
       },
     );
@@ -511,9 +581,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       stopRingtone();
       cleanup();
     });
+
     socket.on("call-ended", () => {
       const currentRemoteUser = remoteUserRef.current;
-      // If we were receiving a call and the other side hung up, it's a missed call for us
       if (callStatusRef.current === CallStatus.INCOMING && currentRemoteUser) {
         socket.emit("send-message", {
           receiverId: currentRemoteUser.user_id,
@@ -523,6 +593,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       stopRingtone();
       cleanup();
     });
+
     socket.on("call-missed", () => {
       const currentRemoteUser = remoteUserRef.current;
       if (callStatusRef.current === CallStatus.INCOMING && currentRemoteUser) {
@@ -558,7 +629,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       socket.off("call-missed");
       socket.off("call-mode-change");
     };
-  }, [socket, cleanup, createPeerConnection, getIceServers]);
+  }, [
+    socket,
+    cleanup,
+    createPeerConnection,
+    getIceServers,
+    getLocalStream,
+    flushIceCandidateQueue,
+  ]);
 
   const acceptCall = useCallback(() => {
     const currentRoomId = roomIdRef.current;
@@ -636,3 +714,39 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     </CallContext.Provider>
   );
 };
+
+/*
+──────────────────────────────────────────────────────────────────────────────
+  /app/api/turn-credentials/route.ts   ← CREATE THIS FILE
+──────────────────────────────────────────────────────────────────────────────
+
+export async function GET() {
+  const ident  = process.env.XIRSYS_IDENT!;
+  const secret = process.env.XIRSYS_SECRET!;
+  const channel = process.env.XIRSYS_CHANNEL!;
+  const token  = Buffer.from(`${ident}:${secret}`).toString("base64");
+
+  const res = await fetch(`https://global.xirsys.net/_turn/${channel}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Basic ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ format: "urls" }),
+  });
+
+  if (!res.ok) return Response.json([], { status: 200 }); // graceful fallback
+  const data = await res.json();
+  return Response.json(data?.v?.iceServers ?? []);
+}
+
+──────────────────────────────────────────────────────────────────────────────
+  .env.local
+──────────────────────────────────────────────────────────────────────────────
+
+XIRSYS_IDENT=your_ident
+XIRSYS_SECRET=your_secret
+XIRSYS_CHANNEL=my-lark
+
+──────────────────────────────────────────────────────────────────────────────
+*/

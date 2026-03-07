@@ -25,6 +25,33 @@ interface CallOverlayProps {
   callDuration: number;
 }
 
+// ─── Network quality badge (poor / fair / good) ──────────────────────────────
+type NetworkQuality = "good" | "fair" | "poor" | null;
+
+const NetworkBadge = ({ quality }: { quality: NetworkQuality }) => {
+  if (!quality) return null;
+  const colors: Record<NonNullable<NetworkQuality>, string> = {
+    good: "bg-green-500/80",
+    fair: "bg-yellow-400/80",
+    poor: "bg-red-500/80",
+  };
+  const labels: Record<NonNullable<NetworkQuality>, string> = {
+    good: "Good signal",
+    fair: "Fair signal",
+    poor: "Poor signal",
+  };
+  return (
+    <div
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold text-white/90 ${colors[quality]} backdrop-blur-md`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${quality === "good" ? "bg-green-200" : quality === "fair" ? "bg-yellow-200" : "bg-red-200"} animate-pulse`}
+      />
+      {labels[quality]}
+    </div>
+  );
+};
+
 const CallOverlay = ({
   status,
   localStream,
@@ -46,6 +73,46 @@ const CallOverlay = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const initialPos = useRef({ x: 0, y: 0 });
+
+  // ─── Network quality monitoring ─────────────────────────────────────────────
+  const [networkQuality, setNetworkQuality] = useState<NetworkQuality>(null);
+  const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const bgVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (status !== CallStatus.ACTIVE || !remoteStream) {
+      setNetworkQuality(null);
+      if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+      return;
+    }
+
+    const videoEl = remoteVideoRef.current;
+    if (!videoEl) return;
+
+    statsIntervalRef.current = setInterval(() => {
+      if (!videoEl) return;
+      const tracks = remoteStream.getVideoTracks();
+      if (tracks.length === 0) return;
+
+      const track = tracks[0];
+      if (track.readyState === "ended") {
+        setNetworkQuality("poor");
+      } else if (videoEl.readyState >= 3) {
+        setNetworkQuality("good");
+      } else if (videoEl.readyState >= 1) {
+        setNetworkQuality("fair");
+      } else {
+        setNetworkQuality("poor");
+      }
+    }, 3000);
+
+    return () => {
+      if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+    };
+  }, [status, remoteStream]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -74,16 +141,10 @@ const CallOverlay = ({
     setIsDragging(false);
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   };
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Always-current ref so callback refs can read the latest stream without
-  // being listed as a useCallback dependency (which would cause remounts).
   const latestRemoteStreamRef = useRef<MediaStream | null>(null);
   latestRemoteStreamRef.current = remoteStream;
 
-  // Safe play helper: ignores AbortError (element updated before play() finished)
   const safePlay = (video: HTMLVideoElement) => {
     const promise = video.play();
     if (promise !== undefined) {
@@ -94,37 +155,25 @@ const CallOverlay = ({
     }
   };
 
-  // Callback ref – stable ([] deps) so the video element is NEVER remounted.
-  // Uses latestRemoteStreamRef to handle the case where the stream arrived
-  // before the element mounted (assignRemoteVideo fires after mount).
   const assignRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
     remoteVideoRef.current = node;
     if (node && latestRemoteStreamRef.current) {
-      console.log("[CallOverlay] assignRemoteVideo: assigning stream on mount");
       node.srcObject = latestRemoteStreamRef.current;
       safePlay(node);
     }
   }, []);
 
-  // Keep video srcObject in sync with the remoteStream prop.
   useEffect(() => {
     const video = remoteVideoRef.current;
     if (!video) return;
-
     if (remoteStream) {
-      console.log(
-        "[CallOverlay] useEffect: setting srcObject, tracks:",
-        remoteStream.getTracks().map((t) => t.kind),
-      );
       video.srcObject = remoteStream;
       safePlay(video);
     } else {
-      // Clear stale stream between calls
       video.srcObject = null;
     }
   }, [remoteStream]);
 
-  // Imperatively set srcObject whenever the local stream changes
   useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStream;
@@ -146,12 +195,9 @@ const CallOverlay = ({
 
   if (status === CallStatus.IDLE) return null;
 
-  const showRemoteVideo = !isAudioOnly && remoteStream && !isRemoteVideoOff;
-  const showLocalVideo = !isAudioOnly && localStream && !isLocalVideoOff;
-
   return (
     <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-fade-in overflow-hidden">
-      {/* Dynamic Background Mirror / Placeholder */}
+      {/* Dynamic Background */}
       <div className="absolute inset-0 z-0">
         <video
           ref={bgVideoRef}
@@ -168,8 +214,7 @@ const CallOverlay = ({
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90" />
       </div>
 
-      {/* Main Remote Video (Full Screen) – always mounted so browser never
-          cancels play() due to element removal during status transitions. */}
+      {/* Main Remote Video (Full Screen) — always mounted */}
       <div
         className={`absolute inset-0 z-1 transition-opacity duration-500 ${
           status === CallStatus.ACTIVE && !isAudioOnly
@@ -183,50 +228,77 @@ const CallOverlay = ({
           playsInline
           className="w-full h-full object-cover"
         />
-        {!isAudioOnly && <div className="absolute inset-0 bg-black/10" />}
       </div>
 
       <div className="relative z-10 w-full h-full max-w-5xl flex flex-col items-center justify-between p-6 md:p-12">
-        {/* Top Info - Caller Details */}
+        {/* Top — caller info */}
         <div className="w-full flex flex-col items-center mt-10 space-y-4 animate-in fade-in slide-in-from-top duration-700">
           {(isAudioOnly ||
             !remoteStream ||
             isRemoteVideoOff ||
             status !== CallStatus.ACTIVE) && (
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-gray-800 transition-all duration-500 scale-100 hover:scale-105">
+            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-gray-800 transition-all duration-500">
               <Image
                 src={
                   remoteUser?.avatar ||
-                  `https://ui-avatars.com/api/?name=${remoteUser?.username}&background=random`
+                  "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
                 }
-                alt={remoteUser?.username || "User"}
-                width={160}
-                height={160}
-                className="object-cover w-full h-full"
+                alt={remoteUser?.username || "Companion"}
+                fill
+                className="object-cover"
               />
             </div>
           )}
 
-          <div className="text-center drop-shadow-lg">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">
-              {remoteUser?.username}
+          <div className="text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+              {remoteUser?.username || "Companion"}
             </h2>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-primary animate-ping" />
-              <p className="text-primary-light font-semibold text-lg drop-shadow-md">
-                {status === CallStatus.INITIATING && "Calling..."}
-                {status === CallStatus.INCOMING && "Incoming Video Call..."}
-                {status === CallStatus.ACCEPTED && "Connecting..."}
-                {status === CallStatus.ACTIVE &&
-                  (isRemoteVideoOff
-                    ? "Video Paused"
-                    : formatDuration(callDuration))}
+            <div className="flex flex-col items-center mt-1">
+              <p className="text-sm md:text-base text-white/60 font-medium">
+                {status === CallStatus.INITIATING
+                  ? "Calling..."
+                  : status === CallStatus.INCOMING
+                    ? "Incoming Call"
+                    : status === CallStatus.ACCEPTED
+                      ? "Connecting..."
+                      : (isAudioOnly ? "Audio Call " : "Video Call ") +
+                        (isAudioOnly ? "" : formatDuration(callDuration))}
               </p>
             </div>
+
+            {/* Network quality badge — only shown during active call */}
+            {status === CallStatus.ACTIVE && (
+              <div className="flex justify-center mt-2">
+                <NetworkBadge quality={networkQuality} />
+              </div>
+            )}
+
+            {/* Remote muted indicator */}
+            {isRemoteMuted && status === CallStatus.ACTIVE && (
+              <div className="flex justify-center mt-2">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold text-white/80 bg-white/10 backdrop-blur-md">
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3zM3 3l18 18"
+                    />
+                  </svg>
+                  Muted
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Local Mini-Preview - Draggable */}
+        {/* Local Mini-Preview — Draggable */}
         {localStream && status !== CallStatus.INCOMING && (
           <div
             onPointerDown={handlePointerDown}
@@ -236,14 +308,16 @@ const CallOverlay = ({
               transform: `translate(${position.x}px, ${position.y}px)`,
               touchAction: "none",
             }}
-            className={`absolute top-8 right-8 w-32 h-44 md:w-56 md:h-72 bg-gray-900 border-2 border-white/20 shadow-2xl z-30 transition-shadow rounded-3xl overflow-hidden cursor-move ${isDragging ? "shadow-white/10 ring-2 ring-white/20" : ""}`}
+            className={`absolute right-6 top-6 w-32 h-44 md:w-48 md:h-64 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl z-50 transition-all duration-300 ${
+              isDragging ? "scale-105 cursor-grabbing" : "cursor-grab"
+            }`}
           >
             <video
               ref={localVideoRef}
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover pointer-events-none transition-opacity duration-500 ${!isLocalVideoOff ? "opacity-100" : "opacity-0"}`}
+              className="w-full h-full object-cover bg-gray-900"
             />
             {isLocalVideoOff && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-md">
@@ -267,11 +341,28 @@ const CallOverlay = ({
             <div className="absolute bottom-3 left-3 px-2 py-0.5 bg-black/40 backdrop-blur-md rounded-md text-[10px] text-white/80 font-medium">
               You
             </div>
+            {isLocalMuted && (
+              <div className="absolute top-2 right-2 w-6 h-6 bg-red-500/80 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-3 h-3 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3zM3 3l18 18"
+                  />
+                </svg>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Controls Bar */}
-        <div className="mt-8 md:mt-12 bg-white/10 backdrop-blur-xl px-6 md:px-10 py-4 md:py-6 rounded-3xl border border-white/10 flex items-center gap-4 md:gap-8 shadow-2xl animate-slide-up">
+        {/* Controls */}
+        <div className="w-full max-w-2xl bg-white/10 backdrop-blur-2xl rounded-3xl p-4 md:p-6 border border-white/10 shadow-2xl flex items-center justify-around animate-in fade-in slide-in-from-bottom duration-700">
           {status === CallStatus.INCOMING ? (
             <>
               <button
@@ -301,10 +392,13 @@ const CallOverlay = ({
             </>
           ) : (
             <>
-              {/* Toggle Video */}
               <button
                 onClick={toggleVideo}
-                className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isLocalVideoOff ? "bg-red-500/20 text-red-500 border border-red-500/50" : "bg-white/10 text-white hover:bg-white/20 border border-white/5"}`}
+                className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${
+                  isLocalVideoOff
+                    ? "bg-red-500 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
                 title={isLocalVideoOff ? "Turn Video On" : "Turn Video Off"}
               >
                 {isLocalVideoOff ? (
@@ -337,11 +431,13 @@ const CallOverlay = ({
                   </svg>
                 )}
               </button>
-
-              {/* Toggle Mute */}
               <button
                 onClick={toggleMute}
-                className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isLocalMuted ? "bg-red-500/20 text-red-500 border border-red-500/50" : "bg-white/10 text-white hover:bg-white/20 border border-white/5"}`}
+                className={`w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${
+                  isLocalMuted
+                    ? "bg-red-500 text-white"
+                    : "bg-white/10 text-white hover:bg-white/20"
+                }`}
                 title={isLocalMuted ? "Unmute" : "Mute"}
               >
                 {isLocalMuted ? (
@@ -374,8 +470,6 @@ const CallOverlay = ({
                   </svg>
                 )}
               </button>
-
-              {/* End Call */}
               <button
                 onClick={endCall}
                 className="w-14 h-14 md:w-16 md:h-16 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all shadow-lg shadow-red-500/30 hover:scale-110 active:scale-95"
@@ -388,8 +482,6 @@ const CallOverlay = ({
                   <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
                 </svg>
               </button>
-
-              {/* Speaker Toggle (Placeholder/Decorative) */}
               <button className="hidden sm:flex w-12 h-12 md:w-14 md:h-14 bg-white/10 rounded-full items-center justify-center text-white hover:bg-white/20 transition-all">
                 <svg
                   className="w-5 h-5 md:w-6 md:h-6"
