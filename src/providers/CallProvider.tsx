@@ -99,6 +99,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
+  // Safely play an audio element, ignoring AbortError from rapid start/stop
+  const safeAudioPlay = useCallback((audio: HTMLAudioElement) => {
+    const promise = audio.play();
+    if (promise !== undefined) {
+      promise.catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // Ringtone was stopped before it could start – safe to ignore
+          return;
+        }
+        console.warn("[CallProvider] Audio play failed:", err);
+      });
+    }
+  }, []);
+
   const stopRingtone = useCallback(() => {
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
@@ -113,10 +127,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3",
       );
       audio.loop = true;
-      audio.play().catch((e) => console.error("Audio play failed:", e));
       ringtoneRef.current = audio;
+      safeAudioPlay(audio);
     }
-  }, []);
+  }, [safeAudioPlay]);
 
   const playOutgoingRingtone = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -124,10 +138,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
       );
       audio.loop = true;
-      audio.play().catch((e) => console.error("Audio play failed:", e));
       ringtoneRef.current = audio;
+      safeAudioPlay(audio);
     }
-  }, []);
+  }, [safeAudioPlay]);
 
   const toggleMute = useCallback(() => {
     if (localStreamRef.current) {

@@ -78,31 +78,40 @@ const CallOverlay = ({
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Callback ref for remote video: fires immediately when the element mounts.
-  // This handles the case where remoteStream was set BEFORE the video element mounted.
-  const assignRemoteVideo = useCallback(
-    (node: HTMLVideoElement | null) => {
-      remoteVideoRef.current = node;
-      if (node && remoteStream) {
-        console.log(
-          "[CallOverlay] Assigning remote stream on mount",
-          remoteStream.getTracks(),
-        );
-        node.srcObject = remoteStream;
-      }
-    },
-    [remoteStream],
-  );
+  // Safe play helper: ignores AbortError (caused by rapid src changes / element removal)
+  const safePlay = (video: HTMLVideoElement) => {
+    const promise = video.play();
+    if (promise !== undefined) {
+      promise.catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // Silently ignore – element was updated before play() completed
+          return;
+        }
+        console.warn("[CallOverlay] play() failed:", err);
+      });
+    }
+  };
 
-  // Also watch for remoteStream changes after the element is already mounted.
-  // This handles the case where the element mounted BEFORE the stream arrived.
+  // Callback ref for remote video – NO stream dependency so the element is
+  // never re-created when the stream updates (avoids unmount → AbortError).
+  const assignRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
+    remoteVideoRef.current = node;
+    if (node && remoteVideoRef.current?.srcObject) {
+      safePlay(node);
+    }
+  }, []);
+
+  // Update remote video srcObject whenever the stream changes.
+  // The video element stays in the DOM; only srcObject is swapped.
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
+    const video = remoteVideoRef.current;
+    if (video && remoteStream) {
       console.log(
-        "[CallOverlay] Updating remote srcObject via effect",
+        "[CallOverlay] Updating remote srcObject",
         remoteStream.getTracks(),
       );
-      remoteVideoRef.current.srcObject = remoteStream;
+      video.srcObject = remoteStream;
+      safePlay(video);
     }
   }, [remoteStream]);
 
@@ -150,22 +159,23 @@ const CallOverlay = ({
         <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90" />
       </div>
 
-      {/* Main Remote Video (Full Screen) */}
-      {status === CallStatus.ACTIVE && (
-        <div
-          className={`absolute inset-0 z-1 animate-in fade-in duration-1000 ${
-            isAudioOnly ? "invisible pointer-events-none" : ""
-          }`}
-        >
-          <video
-            ref={assignRemoteVideo}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
-          {!isAudioOnly && <div className="absolute inset-0 bg-black/10" />}
-        </div>
-      )}
+      {/* Main Remote Video (Full Screen) – always mounted so browser never
+          cancels play() due to element removal during status transitions. */}
+      <div
+        className={`absolute inset-0 z-1 transition-opacity duration-500 ${
+          status === CallStatus.ACTIVE && !isAudioOnly
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <video
+          ref={assignRemoteVideo}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover"
+        />
+        {!isAudioOnly && <div className="absolute inset-0 bg-black/10" />}
+      </div>
 
       <div className="relative z-10 w-full h-full max-w-5xl flex flex-col items-center justify-between p-6 md:p-12">
         {/* Top Info - Caller Details */}
