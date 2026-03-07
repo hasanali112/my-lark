@@ -190,31 +190,41 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const isAudioOnlyRef = useRef(false);
   const callStatusRef = useRef<CallStatus>(CallStatus.IDLE);
 
-  const configuration: RTCConfiguration = {
-    iceServers: [
+  // Fetch short-lived ICE credentials from Xirsys before every call.
+  // Dynamic tokens are safer and more reliable than static credentials.
+  const getIceServers = useCallback(async (): Promise<RTCIceServer[]> => {
+    const fallback: RTCIceServer[] = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      { urls: "stun:stun2.l.google.com:19302" },
-      { urls: "stun:stun3.l.google.com:19302" },
-      // Free TURN servers (open relay) for NAT traversal
-      {
-        urls: "turn:openrelay.metered.ca:80",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-      {
-        urls: "turn:openrelay.metered.ca:443",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-      {
-        urls: "turn:openrelay.metered.ca:443?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-    ],
-    iceCandidatePoolSize: 10,
-  };
+    ];
+
+    try {
+      const ident = "hasanali";
+      const secret = "8ab703b6-1a2a-11f1-a386-0242ac140002";
+      const channel = "my-book";
+      const token = Buffer.from(`${ident}:${secret}`).toString("base64");
+
+      const res = await fetch(`https://global.xirsys.net/_turn/${channel}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Basic ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ format: "urls" }),
+      });
+
+      if (!res.ok) throw new Error(`Xirsys responded ${res.status}`);
+
+      const data = await res.json();
+      const servers: RTCIceServer[] = data?.v?.iceServers ?? [];
+      console.log("[ICE] Xirsys servers loaded:", servers.length);
+      // Always include a STUN fallback
+      return [...fallback, ...servers];
+    } catch (err) {
+      console.warn("[ICE] Xirsys fetch failed, using fallback STUN:", err);
+      return fallback;
+    }
+  }, []);
 
   const cleanup = useCallback(() => {
     stopRingtone(); // Ensure ringtone stops
@@ -248,8 +258,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   }, [stopRingtone]);
 
   const createPeerConnection = useCallback(
-    (targetSocketId: string, currentRoomId: string) => {
-      const pc = new RTCPeerConnection(configuration);
+    async (targetSocketId: string, currentRoomId: string) => {
+      const iceServers = await getIceServers();
+      const pc = new RTCPeerConnection({
+        iceServers,
+        iceCandidatePoolSize: 10,
+      });
 
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
@@ -305,7 +319,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       peerConnectionRef.current = pc;
       return pc;
     },
-    [socket],
+    [socket, getIceServers],
   );
 
   const initiateCall = useCallback(
@@ -410,7 +424,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (data.shouldCreateOffer) {
-          const pc = createPeerConnection(data.peerSocketId, data.roomId);
+          const pc = await createPeerConnection(data.peerSocketId, data.roomId);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit("send-offer", {
@@ -443,7 +457,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             return;
           }
         }
-        const pc = createPeerConnection(data.fromSocketId, data.roomId);
+        const pc = await createPeerConnection(data.fromSocketId, data.roomId);
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -544,7 +558,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       socket.off("call-missed");
       socket.off("call-mode-change");
     };
-  }, [socket, cleanup, createPeerConnection]);
+  }, [socket, cleanup, createPeerConnection, getIceServers]);
 
   const acceptCall = useCallback(() => {
     const currentRoomId = roomIdRef.current;
